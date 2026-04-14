@@ -3,7 +3,7 @@
 Административные маршруты: бэкапы, журнал действий, управление IP, список изменений.
 """
 
-from flask import Blueprint, request, send_file, flash, redirect, url_for, render_template_string
+from flask import Blueprint, request, send_file, flash, redirect, url_for, render_template_string, jsonify
 import os
 import sys
 import glob
