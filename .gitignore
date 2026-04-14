@@ -1,0 +1,33 @@
+# База данных SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Резервные копии (вся папка)
+backups/
+
+# Временные файлы Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Файлы среды (виртуальное окружение)
+venv/
+env/
+.env
+
+# Файлы сборки PyInstaller
+build/
+dist/
+*.spec
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Файлы логов
+*.log
+
+# Возможные временные файлы из Excel
+~$*.xlsx
+~$*.xlsm
