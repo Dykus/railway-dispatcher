@@ -99,13 +99,13 @@ def create_app():
     from app.routes.main import main_bp
     from app.routes.history import history_bp
     from app.routes.api import api_bp
-    from app.routes.admin import admin_bp
     from app.routes.export import export_bp
+    from app.routes.admin import admin_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(history_bp)
-    app.register_blueprint(api_bp, url_prefix='/api')
-    app.register_blueprint(admin_bp, url_prefix='/admin')
+    app.register_blueprint(api_bp)          # префикс /api задан в Blueprint
     app.register_blueprint(export_bp)
+    app.register_blueprint(admin_bp)        # префикс /admin задан в Blueprint
 
     return app

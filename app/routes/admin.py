@@ -19,6 +19,7 @@ from app.utils import log_action, parse_flexible_date
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
+
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def apply_excel_styling(writer, sheet_name, has_notes=False):
     from openpyxl.styles import Font, Alignment
@@ -45,6 +46,7 @@ def apply_excel_styling(writer, sheet_name, has_notes=False):
             else:
                 cell.alignment = Alignment(horizontal='center', vertical='center')
 
+
 # ==================== БЭКАПЫ ====================
 @admin_bp.route('/backup', methods=['POST'])
 def create_backup():
@@ -63,6 +65,7 @@ def create_backup():
         return f"✅ Резервная копия создана: {backup_path}", 200
     except Exception as e:
         return f"❌ Ошибка создания бэкапа: {str(e)}", 500
+
 
 @admin_bp.route('/backups')
 def list_backups():
@@ -136,6 +139,7 @@ def list_backups():
     """
     return html
 
+
 @admin_bp.route('/download_backup')
 def download_backup():
     if request.user_role != 'admin':
@@ -149,6 +153,7 @@ def download_backup():
     if not os.path.exists(full_path):
         return "Файл не найден", 404
     return send_file(full_path, as_attachment=True, download_name=os.path.basename(full_path))
+
 
 @admin_bp.route('/restore', methods=['POST'])
 def restore_backup():
@@ -170,6 +175,7 @@ def restore_backup():
         return f"✅ База данных восстановлена из {rel_path}. Рекомендуется перезапустить программу."
     except Exception as e:
         return f"❌ Ошибка восстановления: {str(e)}", 500
+
 
 # ==================== ЖУРНАЛ ДЕЙСТВИЙ ====================
 @admin_bp.route('/logs')
@@ -249,6 +255,7 @@ def view_logs():
     """
     return html
 
+
 @admin_bp.route('/export_logs_excel')
 def export_logs_excel():
     if request.user_role != 'admin':
@@ -288,6 +295,7 @@ def export_logs_excel():
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"ActionLog_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
+
 # ==================== УПРАВЛЕНИЕ IP ====================
 @admin_bp.route('/ip_users', methods=['GET', 'POST'])
 def manage_ip_users():
@@ -310,7 +318,7 @@ def manage_ip_users():
         access_allowed = 1 if request.form.get('access_allowed') else 0
         role = request.form.get('role', 'viewer')
         if ip and username:
-            c.execute("INSERT OR REPLACE INTO ip_users (ip_address, username, note, access_allowed, role) VALUES (?, ?, ?, ?, ?)", 
+            c.execute("INSERT OR REPLACE INTO ip_users (ip_address, username, note, access_allowed, role) VALUES (?, ?, ?, ?, ?)",
                       (ip, username, note, access_allowed, role))
             conn.commit()
             flash(f"Привязка для IP {ip} сохранена", 'success')
@@ -320,7 +328,7 @@ def manage_ip_users():
     c.execute("SELECT ip_address, username, note, access_allowed, role FROM ip_users ORDER BY ip_address")
     rows = c.fetchall()
     conn.close()
-    
+
     html = """
     <!DOCTYPE html>
     <html lang="ru">
@@ -409,6 +417,7 @@ def manage_ip_users():
     """
     return html
 
+
 # ==================== РЕДАКТИРОВАНИЕ ВАГОНА И ИСТОРИИ ====================
 @admin_bp.route('/edit_wagon/<int:wagon_id>', methods=['POST'])
 def edit_wagon_route(wagon_id):
@@ -426,6 +435,7 @@ def edit_wagon_route(wagon_id):
         return jsonify({"success": True, "message": msg})
     else:
         return jsonify({"success": False, "message": msg}), 400
+
 
 @admin_bp.route('/edit_history/<int:history_id>', methods=['POST'])
 def edit_history(history_id):
@@ -498,8 +508,9 @@ def edit_history(history_id):
     conn.close()
     return jsonify({"success": True, "message": "Дата успешно обновлена"})
 
+
 # ==================== CHANGELOG ====================
-@admin_bp.route('/admin/changelog')
+@admin_bp.route('/changelog')
 def changelog():
     if request.user_role != 'admin':
         return "Доступ запрещён. Список изменений доступен только администраторам.", 403
