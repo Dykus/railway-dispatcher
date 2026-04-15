@@ -9,11 +9,13 @@
         h1 { color: #2c3e50; }
         .nav-bar { margin-bottom: 20px; }
         .btn {
-            display: inline-block; padding: 8px 15px; background: #3498db; color: white;
-            text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 5px; border: none; cursor: pointer;
+            display: inline-block; padding: 8px 15px; color: white; text-decoration: none;
+            border-radius: 5px; font-weight: bold; margin-right: 5px; border: none; cursor: pointer;
         }
+        .btn-primary { background: #3498db; }
+        .btn-success { background: #27ae60; }
         .btn-danger { background: #e74c3c; }
-        .btn-excel { background: #217346; }
+
         table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background: #34495e; color: white; }
@@ -24,26 +26,21 @@
 <div class="container">
     <h1>📦 Резервные копии базы данных</h1>
     <div class="nav-bar">
-        <a href="/" class="btn">🏠 На главную</a>
-        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
-        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
-        <a href="/admin/changelog" class="btn">📋 Список изменений</a>
+        <a href="/" class="btn btn-primary">🏠 На главную</a>
+        <a href="/admin/logs" class="btn btn-primary">📜 Журнал действий</a>
+        <a href="/admin/ip_users" class="btn btn-primary">🔗 Привязка IP</a>
+        <a href="/admin/changelog" class="btn btn-primary">📋 Список изменений</a>
     </div>
-    <p><a href="#" onclick="event.preventDefault(); fetch('/admin/backup', {method:'POST'}).then(r=>r.text()).then(alert);" class="btn" style="background:#27ae60;">➕ Создать новую копию</a></p>
+    <p><a href="#" onclick="event.preventDefault(); fetch('/admin/backup', {method:'POST'}).then(r=>r.text()).then(alert);" class="btn btn-success">➕ Создать новую копию</a></p>
     <table>
-        <tr>
-            <th>Имя файла</th>
-            <th>Размер (КБ)</th>
-            <th>Дата изменения</th>
-            <th>Действия</th>
-        </tr>
+        <tr><th>Имя файла</th><th>Размер (КБ)</th><th>Дата изменения</th><th>Действия</th></tr>
         {% for b in backups_info %}
         <tr>
             <td>{{ b.name }}</td>
             <td>{{ (b.size / 1024) | round(1) }}</td>
             <td>{{ b.modified }}</td>
             <td>
-                <a href="/admin/download_backup?rel_path={{ b.rel_path }}" class="btn">📥 Скачать</a>
+                <a href="/admin/download_backup?rel_path={{ b.rel_path }}" class="btn btn-primary">📥 Скачать</a>
                 <a href="#" onclick="restore('{{ b.rel_path }}'); return false;" class="btn btn-danger">🔄 Восстановить</a>
             </td>
         </tr>

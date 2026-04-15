@@ -9,9 +9,11 @@
         h1, h3 { color: #2c3e50; }
         .nav-bar { margin-bottom: 20px; }
         .btn {
-            display: inline-block; padding: 8px 15px; background: #3498db; color: white;
-            text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 5px; border: none; cursor: pointer;
+            display: inline-block; padding: 8px 15px; color: white; text-decoration: none;
+            border-radius: 5px; font-weight: bold; margin-right: 5px; border: none; cursor: pointer;
         }
+        .btn-primary { background: #3498db; }
+        .btn-success { background: #27ae60; }
         .delete-btn { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         form.controls { background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
         input, select { padding: 8px; margin: 5px 5px 5px 0; border: 1px solid #bdc3c7; border-radius: 4px; }
@@ -25,10 +27,10 @@
 <div class="container">
     <h1>🔗 Привязка IP к именам пользователей</h1>
     <div class="nav-bar">
-        <a href="/" class="btn">🏠 На главную</a>
-        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
-        <a href="/admin/backups" class="btn">💾 Бэкапы</a>
-        <a href="/admin/changelog" class="btn">📋 Список изменений</a>
+        <a href="/" class="btn btn-primary">🏠 На главную</a>
+        <a href="/admin/logs" class="btn btn-primary">📜 Журнал действий</a>
+        <a href="/admin/backups" class="btn btn-primary">💾 Бэкапы</a>
+        <a href="/admin/changelog" class="btn btn-primary">📋 Список изменений</a>
     </div>
 
     <form method="POST" class="controls">
@@ -43,7 +45,7 @@
             <option value="supervisor">Супервизор</option>
             <option value="admin">Администратор</option>
         </select>
-        <button type="submit" class="btn" style="background:#27ae60;">Сохранить</button>
+        <button type="submit" class="btn btn-success">Сохранить</button>
     </form>
 
     <h3>Текущие привязки</h3>
