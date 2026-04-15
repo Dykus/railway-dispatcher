@@ -10,7 +10,6 @@ import threading
 import webbrowser
 import logging
 from logging.handlers import RotatingFileHandler
-from datetime import datetime, timedelta
 
 # Добавляем текущую директорию в путь
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -18,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from app import create_app
 from config import BASE_DIR, APP_VERSION
 
-# Глобальная переменная для IP сервера (будет определена позже)
+# Глобальная переменная для IP сервера
 SERVER_IP = None
 
 # Попытка импорта pystray для иконки в трее
@@ -36,11 +35,18 @@ def create_tray_icon():
     if not HAS_TRAY:
         return
 
+    # Определяем, где искать иконку
+    if getattr(sys, 'frozen', False):
+        # Запущено как EXE – ищем внутри _MEIPASS
+        base_path = sys._MEIPASS
+    else:
+        base_path = BASE_DIR
+
     # Пытаемся загрузить иконку из файла
     img = None
     icon_path = None
     for ext in ['.ico', '.png']:
-        test_path = os.path.join(BASE_DIR, f'icon{ext}')
+        test_path = os.path.join(base_path, f'icon{ext}')
         if os.path.exists(test_path):
             icon_path = test_path
             break
@@ -48,13 +54,15 @@ def create_tray_icon():
     if icon_path:
         try:
             img = Image.open(icon_path)
+            # Приводим к размеру 64x64
             img = img.resize((64, 64), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS)
         except Exception as e:
-            logging.warning(f"Не удалось загрузить иконку: {e}")
+            logging.warning(f"Не удалось загрузить иконку из {icon_path}: {e}")
             img = None
 
     # Если иконку не удалось загрузить, рисуем стандартную
     if img is None:
+        logging.info("Иконка не найдена, используется стандартная (рисованная)")
         img = Image.new('RGB', (64, 64), color='#2c3e50')
         draw = ImageDraw.Draw(img)
         draw.rectangle([(0, 50), (64, 58)], fill='#7f8c8d')
@@ -88,7 +96,6 @@ def setup_logging():
     """Настраивает подробное логирование в файл с ротацией."""
     log_file = os.path.join(BASE_DIR, 'railway_dispatcher.log')
 
-    # Создаём обработчик с ротацией: макс. 5 МБ, храним 5 старых файлов
     file_handler = RotatingFileHandler(
         log_file,
         maxBytes=5 * 1024 * 1024,  # 5 MB
@@ -97,23 +104,19 @@ def setup_logging():
     )
     file_handler.setLevel(logging.DEBUG)
 
-    # Формат сообщений
     formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
     file_handler.setFormatter(formatter)
 
-    # Получаем корневой логгер и настраиваем его
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(file_handler)
 
-    # Если не в EXE-режиме, добавляем вывод в консоль
     if not getattr(sys, 'frozen', False):
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(formatter)
         root_logger.addHandler(console_handler)
 
-    # Настраиваем логгеры Flask и Werkzeug, чтобы они тоже писали в наш лог
     logging.getLogger('werkzeug').setLevel(logging.INFO)
     logging.getLogger('flask').setLevel(logging.INFO)
 
@@ -142,23 +145,16 @@ def print_startup_info():
 
 
 if __name__ == '__main__':
-    # Настройка логирования (должна быть первой)
     setup_logging()
-
-    # Создаём приложение
     app = create_app()
-
-    # Выводим стартовую информацию (попадёт в лог)
     print_startup_info()
 
-    # Запускаем сервер в отдельном потоке
     server_thread = threading.Thread(
         target=lambda: app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False),
         daemon=True
     )
     server_thread.start()
 
-    # Запускаем иконку в трее или просто ждём
     if HAS_TRAY:
         create_tray_icon()
     else:
