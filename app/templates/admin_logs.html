@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Журнал действий</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        h1 { color: #2c3e50; }
+        .nav-bar { margin-bottom: 20px; }
+        .btn {
+            display: inline-block; padding: 8px 15px; background: #3498db; color: white;
+            text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 5px;
+        }
+        .btn-excel { background: #217346; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #34495e; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📋 Журнал действий</h1>
+    <div class="nav-bar">
+        <a href="/" class="btn">🏠 На главную</a>
+        <a href="/admin/backups" class="btn">💾 Бэкапы</a>
+        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
+        <a href="/admin/changelog" class="btn">📋 Список изменений</a>
+    </div>
+    <p>
+        <a href="/admin/export_logs_excel" class="btn btn-excel">📊 Выгрузить в Excel</a>
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>Время</th><th>Пользователь</th><th>IP</th><th>Действие</th><th>Вагон</th><th>Детали</th><th>Старое</th><th>Новое</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log[1] }}</td><td>{{ log[2] }}</td><td>{{ log[3] }}</td>
+                <td>{{ action_translation.get(log[4], log[4]) }}</td>
+                <td>{{ log[5] or '' }}</td><td>{{ log[6] or '' }}</td>
+                <td>{{ log[7] or '' }}</td><td>{{ log[8] or '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

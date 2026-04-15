@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Список изменений</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        h1 { color: #2c3e50; }
+        .nav-bar { margin-bottom: 20px; }
+        .btn {
+            display: inline-block; padding: 8px 15px; background: #3498db; color: white;
+            text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 5px;
+        }
+        pre { background: #f8f9fa; padding: 20px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav-bar">
+        <a href="/" class="btn">🏠 На главную</a>
+        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
+        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
+        <a href="/admin/backups" class="btn">📦 Резервные копии</a>
+    </div>
+    <h1>📋 Список изменений</h1>
+    <pre>{{ content }}</pre>
+</div>
+</body>
+</html>

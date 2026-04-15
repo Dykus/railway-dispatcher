@@ -3,7 +3,7 @@
 Административные маршруты: бэкапы, журнал действий, управление IP, список изменений.
 """
 
-from flask import Blueprint, request, send_file, flash, redirect, url_for, render_template_string, jsonify
+from flask import Blueprint, request, send_file, flash, redirect, url_for, render_template, jsonify
 import os
 import sys
 import glob
@@ -83,61 +83,7 @@ def list_backups():
             'modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
         })
     backups_info.sort(key=lambda x: x['modified'], reverse=True)
-    html = """
-    <html>
-    <head><title>Резервные копии</title>
-    <style>
-        body { font-family: monospace; padding: 20px; background: #f0f2f5; }
-        table { border-collapse: collapse; width: 100%; background: white; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #34495e; color: white; }
-        .btn { display: inline-block; padding: 5px 10px; background: #3498db; color: white; text-decoration: none; border-radius: 4px; margin-right: 5px; }
-        .btn-danger { background: #e74c3c; }
-        .nav-bar { margin-bottom: 15px; }
-    </style>
-    </head>
-    <body>
-    <h1>📦 Резервные копии базы данных</h1>
-    <div class="nav-bar">
-        <a href="/" class="btn">🏠 На главную</a>
-        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
-        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
-        <a href="/admin/changelog" class="btn">📋 Список изменений</a>
-    </div>
-    <p><a href="#" onclick="event.preventDefault(); fetch('/admin/backup', {method:'POST'}).then(r=>r.text()).then(alert);" class="btn">➕ Создать новую копию</a></p>
-    <table>
-        <tr><th>Имя файла</th><th>Размер (КБ)</th><th>Дата изменения</th><th>Действия</th></tr>
-    """
-    for b in backups_info:
-        size_kb = b['size'] / 1024
-        html += f"""
-        <tr>
-            <td>{b['name']}</td>
-            <td>{size_kb:.1f}</td>
-            <td>{b['modified']}</td>
-            <td>
-                <a href="/admin/download_backup?rel_path={b['rel_path']}" class="btn">📥 Скачать</a>
-                <a href="#" onclick="restore('{b['rel_path']}')" class="btn btn-danger">🔄 Восстановить</a>
-            </td>
-        </tr>
-        """
-    html += """
-    </table>
-    <script>
-    function restore(relPath) {
-        if (confirm('Восстановление заменит текущую базу данных! Сделайте резервную копию перед восстановлением. Продолжить?')) {
-            fetch('/admin/restore', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'rel_path=' + encodeURIComponent(relPath)
-            }).then(r => r.text()).then(alert).then(() => location.reload());
-        }
-    }
-    </script>
-    </body>
-    </html>
-    """
-    return html
+    return render_template('admin_backups.html', backups_info=backups_info)
 
 
 @admin_bp.route('/download_backup')
@@ -199,61 +145,7 @@ def view_logs():
         'backup_auto': 'Автоматический бэкап',
         'edit_history': 'Редактирование истории'
     }
-    html = """
-    <html>
-    <head>
-        <title>Журнал действий</title>
-        <style>
-            body { font-family: monospace; padding: 20px; background: #f0f2f5; }
-            table { border-collapse: collapse; width: 100%; background: white; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background: #34495e; color: white; }
-            .btn { display: inline-block; padding: 5px 10px; background: #3498db; color: white; text-decoration: none; border-radius: 4px; }
-            .btn-excel { background: #27ae60; }
-        </style>
-    </head>
-    <body>
-        <h1>📋 Журнал действий</h1>
-        <p>
-            <a href="/" class="btn">🏠 На главную</a>
-            <a href="/admin/export_logs_excel" class="btn btn-excel">📊 Выгрузить в Excel</a>
-        </p>
-        <table>
-            <thead>
-                <tr>
-                    <th>Время</th>
-                    <th>Пользователь</th>
-                    <th>IP</th>
-                    <th>Действие</th>
-                    <th>Вагон</th>
-                    <th>Детали</th>
-                    <th>Старое</th>
-                    <th>Новое</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
-    for log in logs:
-        action_rus = action_translation.get(log[4], log[4])
-        html += f"""
-                <tr>
-                    <td>{log[1]}</td>
-                    <td>{log[2]}</td>
-                    <td>{log[3]}</td>
-                    <td>{action_rus}</td>
-                    <td>{log[5] if log[5] else ''}</td>
-                    <td>{log[6] if log[6] else ''}</td>
-                    <td>{log[7] if log[7] else ''}</td>
-                    <td>{log[8] if log[8] else ''}</td>
-                </tr>
-        """
-    html += """
-            </tbody>
-        </table>
-    </body>
-    </html>
-    """
-    return html
+    return render_template('admin_logs.html', logs=logs, action_translation=action_translation)
 
 
 @admin_bp.route('/export_logs_excel')
@@ -328,94 +220,7 @@ def manage_ip_users():
     c.execute("SELECT ip_address, username, note, access_allowed, role FROM ip_users ORDER BY ip_address")
     rows = c.fetchall()
     conn.close()
-
-    html = """
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>Привязка IP к пользователям</title>
-        <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background: #f0f2f5; margin: 0; }
-            .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            h1 { color: #2c3e50; margin-top: 0; }
-            .btn { display: inline-block; padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; margin-right: 5px; font-size: 14px; }
-            .btn-excel { background: #27ae60; }
-            form { background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
-            input, select { padding: 8px; margin: 5px 5px 5px 0; border: 1px solid #bdc3c7; border-radius: 4px; }
-            label { margin-right: 10px; }
-            table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
-            th { background: #34495e; color: white; font-weight: bold; }
-            tr:nth-child(even) { background: #f9f9f9; }
-            .delete-btn { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-            .nav-bar { margin-bottom: 20px; }
-        </style>
-    </head>
-    <body>
-    <div class="container">
-        <h1>🔗 Привязка IP к именам пользователей</h1>
-        <div class="nav-bar">
-            <a href="/" class="btn">🏠 На главную</a>
-            <a href="/admin/logs" class="btn">📜 Журнал действий</a>
-            <a href="/admin/backups" class="btn">💾 Бэкапы</a>
-            <a href="/admin/changelog" class="btn">📋 Список изменений</a>
-        </div>
-        
-        <form method="POST">
-            <h3>Добавить / изменить привязку</h3>
-            <input type="text" name="ip_address" placeholder="IP-адрес (например, 192.168.1.100)" required>
-            <input type="text" name="username" placeholder="Имя пользователя" required>
-            <input type="text" name="note" placeholder="Примечание (необязательно)">
-            <label><input type="checkbox" name="access_allowed" value="1"> Доступ разрешён</label>
-            <select name="role">
-                <option value="viewer">Наблюдатель (только просмотр)</option>
-                <option value="dispatcher">Диспетчер</option>
-                <option value="supervisor">Супервизор (может редактировать данные)</option>
-                <option value="admin">Администратор</option>
-            </select>
-            <button type="submit" class="btn" style="background:#27ae60;">Сохранить</button>
-        </form>
-        
-        <h3>Текущие привязки</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>IP-адрес</th>
-                    <th>Имя пользователя</th>
-                    <th>Примечание</th>
-                    <th>Доступ</th>
-                    <th>Роль</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
-    for ip, username, note, access_allowed, role in rows:
-        access_flag = "Да" if access_allowed else "Нет"
-        html += f"""
-                <tr>
-                    <td>{ip}</td>
-                    <td>{username}</td>
-                    <td>{note or ''}</td>
-                    <td>{access_flag}</td>
-                    <td>{role}</td>
-                    <td>
-                        <form method="POST" style="margin:0; padding:0; display:inline;" onsubmit="return confirm('Удалить привязку для {ip}?')">
-                            <input type="hidden" name="delete_ip" value="{ip}">
-                            <button type="submit" class="delete-btn">❌ Удалить</button>
-                        </form>
-                    </td>
-                </tr>
-        """
-    html += """
-            </tbody>
-        </table>
-    </div>
-    </body>
-    </html>
-    """
-    return html
+    return render_template('admin_ip_users.html', rows=rows)
 
 
 # ==================== РЕДАКТИРОВАНИЕ ВАГОНА И ИСТОРИИ ====================
@@ -518,27 +323,4 @@ def changelog():
         return f"Файл CHANGELOG.txt не найден. Ожидаемый путь: {CHANGELOG_PATH}", 404
     with open(CHANGELOG_PATH, 'r', encoding='utf-8') as f:
         content = f.read()
-    html = f"""
-    <html>
-    <head>
-        <title>Список изменений</title>
-        <style>
-            body {{ font-family: monospace; padding: 20px; background: #f0f2f5; }}
-            pre {{ background: white; padding: 20px; border-radius: 10px; overflow-x: auto; }}
-            .btn {{ display: inline-block; padding: 5px 10px; background: #3498db; color: white; text-decoration: none; border-radius: 4px; margin-right: 5px; }}
-            .nav-bar {{ margin-bottom: 15px; }}
-        </style>
-    </head>
-    <body>
-        <div class="nav-bar">
-            <a href="/" class="btn">🏠 На главную</a>
-            <a href="/admin/logs" class="btn">📜 Журнал действий</a>
-            <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
-            <a href="/admin/backups" class="btn">📦 Резервные копии</a>
-        </div>
-        <h1>📋 Список изменений</h1>
-        <pre>{content}</pre>
-    </body>
-    </html>
-    """
-    return html
+    return render_template('changelog.html', content=content)

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Резервные копии</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        h1 { color: #2c3e50; }
+        .nav-bar { margin-bottom: 20px; }
+        .btn {
+            display: inline-block; padding: 8px 15px; background: #3498db; color: white;
+            text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 5px; border: none; cursor: pointer;
+        }
+        .btn-danger { background: #e74c3c; }
+        .btn-excel { background: #217346; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #34495e; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📦 Резервные копии базы данных</h1>
+    <div class="nav-bar">
+        <a href="/" class="btn">🏠 На главную</a>
+        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
+        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
+        <a href="/admin/changelog" class="btn">📋 Список изменений</a>
+    </div>
+    <p><a href="#" onclick="event.preventDefault(); fetch('/admin/backup', {method:'POST'}).then(r=>r.text()).then(alert);" class="btn" style="background:#27ae60;">➕ Создать новую копию</a></p>
+    <table>
+        <tr>
+            <th>Имя файла</th>
+            <th>Размер (КБ)</th>
+            <th>Дата изменения</th>
+            <th>Действия</th>
+        </tr>
+        {% for b in backups_info %}
+        <tr>
+            <td>{{ b.name }}</td>
+            <td>{{ (b.size / 1024) | round(1) }}</td>
+            <td>{{ b.modified }}</td>
+            <td>
+                <a href="/admin/download_backup?rel_path={{ b.rel_path }}" class="btn">📥 Скачать</a>
+                <a href="#" onclick="restore('{{ b.rel_path }}'); return false;" class="btn btn-danger">🔄 Восстановить</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+<script>
+function restore(relPath) {
+    if (confirm('Восстановление заменит текущую базу данных! Сделайте резервную копию перед восстановлением. Продолжить?')) {
+        fetch('/admin/restore', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'rel_path=' + encodeURIComponent(relPath)
+        }).then(r => r.text()).then(alert).then(() => location.reload());
+    }
+}
+</script>
+</body>
+</html>
