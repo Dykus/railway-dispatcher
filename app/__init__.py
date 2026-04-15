@@ -59,7 +59,7 @@ def create_app():
 
         # Списки эндпоинтов (учитываем Blueprints)
         public_endpoints = [
-            'main.index', 'history.history_page', 'history.archive_page', 'help_page',
+            'main.index', 'history.history_page', 'history.archive_page', 'main.help_page',   # ← добавили help_page
             'api.api_status', 'api.get_wagon_info', 'api.api_dashboard_data', 'static',
             'export.export_excel', 'export.export_history_excel', 'export.export_archive_excel',
             'export.export_wagon_history', 'export.export_wagon_archive'
