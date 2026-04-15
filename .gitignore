@@ -19,7 +19,6 @@ env/
 # Файлы сборки PyInstaller
 build/
 dist/
-*.spec
 
 # Системные файлы
 .DS_Store

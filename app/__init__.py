@@ -16,7 +16,16 @@ from app.utils import is_ip_allowed, get_role_by_ip
 
 def create_app():
     """Создаёт и настраивает Flask-приложение."""
-    app = Flask(__name__)
+    # --- Определяем пути к шаблонам и статике в зависимости от режима запуска ---
+    if getattr(sys, 'frozen', False):
+        # Запущено как EXE (PyInstaller)
+        template_folder = os.path.join(sys._MEIPASS, 'templates')
+        static_folder = os.path.join(sys._MEIPASS, 'static')
+        app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+    else:
+        # Обычный запуск через Python
+        app = Flask(__name__)
+
     app.secret_key = SECRET_KEY
 
     # Инициализация БД и фоновых задач
@@ -36,7 +45,6 @@ def create_app():
             return
         ip = request.remote_addr
 
-        # Определяем роль и проверяем доступ
         allowed, role, msg = check_access_for_route(ip, request.endpoint)
         if not allowed:
             if request.path.startswith('/api/'):
@@ -47,7 +55,6 @@ def create_app():
 
     def check_access_for_route(ip, endpoint):
         """Внутренняя функция проверки прав доступа."""
-        # Локальный хост всегда админ
         if ip in ('127.0.0.1', '::1'):
             role = 'admin'
         else:
@@ -57,9 +64,8 @@ def create_app():
             if not role:
                 role = 'viewer'
 
-        # Списки эндпоинтов (учитываем Blueprints)
         public_endpoints = [
-            'main.index', 'history.history_page', 'history.archive_page', 'main.help_page',   # ← добавили help_page
+            'main.index', 'history.history_page', 'history.archive_page', 'main.help_page',
             'api.api_status', 'api.get_wagon_info', 'api.api_dashboard_data', 'static',
             'export.export_excel', 'export.export_history_excel', 'export.export_archive_excel',
             'export.export_wagon_history', 'export.export_wagon_archive'
@@ -89,7 +95,6 @@ def create_app():
             else:
                 return False, role, "Доступ только для администратора."
         else:
-            # Если эндпоинт не найден в списках, разрешаем только админу (для безопасности)
             if role == 'admin':
                 return True, role, None
             else:
@@ -104,8 +109,8 @@ def create_app():
 
     app.register_blueprint(main_bp)
     app.register_blueprint(history_bp)
-    app.register_blueprint(api_bp)          # префикс /api задан в Blueprint
+    app.register_blueprint(api_bp)
     app.register_blueprint(export_bp)
-    app.register_blueprint(admin_bp)        # префикс /admin задан в Blueprint
+    app.register_blueprint(admin_bp)
 
     return app

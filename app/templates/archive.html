@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Архив</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f6f9; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #7f8c8d; padding-bottom: 10px; }
+        .nav-links { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .nav-link { display: inline-block; padding: 10px 20px; background: #7f8c8d; color: white; text-decoration: none; border-radius: 5px; }
+        .nav-link-history { background: #3498db; }
+        .nav-link-excel { background: #217346; }
+        .nav-link-help { background: #16a085; }
+        .search-box { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+        .search-box input { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #bdc3c7; border-radius: 5px; }
+        .search-box button { padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .search-box button:hover { background: #2980b9; }
+        .no-results { text-align: center; padding: 20px; color: #e74c3c; font-weight: bold; display: none; }
+        details { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; background: white; }
+        summary {
+            padding: 12px;
+            cursor: pointer;
+            background: #ecf0f1;
+            font-weight: bold;
+            display: grid;
+            grid-template-columns: 150px 80px 200px 1fr 100px;
+            align-items: center;
+            gap: 10px;
+            list-style: none;
+        }
+        summary::-webkit-details-marker { display: none; }
+        summary::marker { display: none; }
+        .wagon-num { font-size: 1.2em; color: #2980b9; }
+        .wagon-status { background: #e74c3c; color: white; padding: 2px 8px; border-radius: 12px; display: inline-block; text-align: center; }
+        .excel-wagon-btn {
+            background: #217346;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            justify-self: end;
+            white-space: nowrap;
+        }
+        .excel-wagon-btn:hover { background: #1e5c3a; }
+        .details-content { padding: 15px; border-top: 1px solid #ddd; overflow-x: auto; }
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .history-table th, .history-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .history-table th {
+            background-color: #34495e;
+            color: white;
+            font-weight: bold;
+        }
+        .history-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .history-table tr:hover {
+            background-color: #f1f1f1;
+        }
+        .history-table th:nth-child(1), .history-table td:nth-child(1) { width: 100px; }
+        .history-table th:nth-child(2), .history-table td:nth-child(2) { width: 120px; }
+        .history-table th:nth-child(3), .history-table td:nth-child(3) { width: 120px; }
+        .history-table th:nth-child(4), .history-table td:nth-child(4) { width: 250px; word-break: break-word; white-space: normal; }
+        .history-table th:nth-child(5), .history-table td:nth-child(5) { width: 160px; }
+        .wagon-details { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav-links">
+        <a href="/" class="nav-link">🏠 На главную</a>
+        <a href="/history" class="nav-link nav-link-history">📜 История</a>
+        <a href="/export_archive_excel" class="nav-link nav-link-excel">📊 Скачать Excel (все вагоны)</a>
+        <a href="/help" class="nav-link nav-link-help">❓ Помощь</a>
+    </div>
+    <h1>🗄️ Архив</h1>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="🔍 Поиск по номеру вагона..." autocomplete="off">
+        <button id="clearSearch">Очистить</button>
+    </div>
+    <div id="noResultsMsg" class="no-results">❌ Ничего не найдено</div>
+
+    <div id="archiveContainer">
+    {% if not archive_groups %}
+        <p>Архив пуст.</p>
+    {% else %}
+        {% for item in archive_groups %}
+            <details class="wagon-details" data-wagon-num="{{ item.num|lower }}">
+                <summary>
+                    <span class="wagon-num">{{ item.num }}</span>
+                    <span class="wagon-status">Убыл</span>
+                    <span>{{ item.owner }}</span>
+                    <span>{{ item.org }}</span>
+                    <span>📅 {{ item.dep[:16] }}</span>
+                    <span>Событий: {{ item.count }}</span>
+                    <a href="/export_wagon_archive/{{ item.num }}" class="excel-wagon-btn" title="Выгрузить историю только этого вагона">📊 Excel</a>
+                </summary>
+                <div class="details-content">
+                    <table class="history-table">
+                        <thead>
+                            <tr><th>Действие</th><th>Откуда</th><th>Куда</th><th>Примечание</th><th>Время</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for ev in item.events %}
+                            <tr>
+                                <td>{{ ev.action|safe }}</td>
+                                <td>{{ ev.from }}</td>
+                                <td>{{ ev.to }}</td>
+                                <td>{{ ev.note }}</td>
+                                <td>{{ ev.time }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        {% endfor %}
+    {% endif %}
+    </div>
+</div>
+<script>
+function filterWagons() {
+    const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+    const containers = document.querySelectorAll('.wagon-details');
+    let visibleCount = 0;
+    containers.forEach(container => {
+        const wagonNum = container.getAttribute('data-wagon-num');
+        if (wagonNum && wagonNum.includes(searchTerm)) {
+            container.style.display = '';
+            visibleCount++;
+        } else {
+            container.style.display = 'none';
+        }
+    });
+    const noResultsDiv = document.getElementById('noResultsMsg');
+    if (visibleCount === 0 && searchTerm !== '') {
+        noResultsDiv.style.display = 'block';
+    } else {
+        noResultsDiv.style.display = 'none';
+    }
+}
+document.getElementById('searchInput').addEventListener('input', filterWagons);
+document.getElementById('clearSearch').addEventListener('click', function() {
+    document.getElementById('searchInput').value = '';
+    filterWagons();
+});
+</script>
+</body>
+</html>
