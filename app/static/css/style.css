@@ -23,8 +23,11 @@ h1 {
     text-align: center;
     color: #2c3e50;
     margin-top: 0;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
 }
 
+/* ===== НАВИГАЦИОННЫЕ КНОПКИ (ОРИГИНАЛЬНЫЕ ЦВЕТА) ===== */
 .header-actions {
     display: flex;
     justify-content: space-between;
@@ -53,6 +56,7 @@ h1 {
     cursor: pointer;
 }
 
+/* Цвета взяты из оригинального HTML_TEMPLATE */
 .btn-history { background: #2980b9; }
 .btn-excel { background: #217346; }
 .btn-archive { background: #7f8c8d; }
@@ -62,6 +66,30 @@ h1 {
 .btn-add { background: #27ae60; }
 .btn-move { background: #f39c12; }
 
+/* Стили для навигации в истории и архиве */
+.nav-links {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.nav-link {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #3498db;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+.nav-link-history { background: #3498db; }
+.nav-link-archive { background: #7f8c8d; }
+.nav-link-excel { background: #217346; }
+.nav-link-help { background: #16a085; }
+
+/* ===== ФОРМЫ И ЭЛЕМЕНТЫ УПРАВЛЕНИЯ ===== */
 .controls {
     display: flex;
     gap: 20px;
@@ -117,17 +145,6 @@ input, select, textarea {
     margin-top: 2px;
 }
 
-.manual-time-inputs {
-    display: flex;
-    gap: 5px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.manual-time-inputs input {
-    width: 120px;
-}
-
 .date-help {
     font-size: 10px;
     color: #7f8c8d;
@@ -169,6 +186,28 @@ input, select, textarea {
     border-left: 4px solid #e74c3c;
 }
 
+/* ===== ЛЕГЕНДА И ПУТИ ===== */
+.legend {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    font-size: 13px;
+}
+
+.legend-color {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
 .track-wrapper {
     margin-bottom: 20px;
     border: 1px solid #ddd;
@@ -195,6 +234,7 @@ input, select, textarea {
     overflow-x: auto;
 }
 
+/* ===== ВАГОНЫ (ОРИГИНАЛЬНЫЕ ЦВЕТА) ===== */
 .wagon {
     position: absolute;
     top: 20px;
@@ -223,6 +263,7 @@ input, select, textarea {
     outline: 3px solid #f1c40f;
 }
 
+/* Градиенты из оригинального шаблона */
 .wagon-normal {
     background: linear-gradient(135deg, #3498db, #2980b9);
 }
@@ -288,6 +329,7 @@ input, select, textarea {
     cursor: pointer;
 }
 
+/* ===== ТУЛТИП ===== */
 #global-tooltip {
     display: none;
     position: fixed;
@@ -341,59 +383,7 @@ input, select, textarea {
     cursor: pointer;
 }
 
-@media (max-width: 768px) {
-    .control-box:first-child {
-        border-right: none;
-        padding-right: 0;
-    }
-    .control-box:last-child {
-        padding-left: 0;
-    }
-}
-
-#moveWagonSelect {
-    height: auto;
-    min-height: 120px;
-}
-
-#wagonSearchInput {
-    margin-bottom: 5px;
-}
-
-.legend {
-    background: #f8f9fa;
-    padding: 10px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    align-items: center;
-    font-size: 13px;
-}
-
-.legend-color {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    vertical-align: middle;
-    margin-right: 4px;
-}
-
-.date-time-group {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 5px;
-    margin-bottom: 5px;
-}
-
-.date-input {
-    font-family: monospace;
-}
-
-/* Стили для страниц истории и архива */
+/* ===== ПОИСК В ИСТОРИИ/АРХИВЕ ===== */
 .search-box {
     margin-bottom: 20px;
     display: flex;
@@ -430,6 +420,7 @@ input, select, textarea {
     display: none;
 }
 
+/* ===== ДЕТАЛИ (СПОЙЛЕРЫ) ===== */
 details {
     border: 1px solid #ddd;
     border-radius: 6px;
@@ -452,7 +443,6 @@ summary {
 summary::-webkit-details-marker {
     display: none;
 }
-
 summary::marker {
     display: none;
 }
@@ -498,6 +488,15 @@ summary::marker {
     text-align: center;
 }
 
+.wagon-status {
+    background: #e74c3c;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    display: inline-block;
+    text-align: center;
+}
+
 .excel-wagon-btn {
     background: #217346;
     color: white;
@@ -511,7 +510,6 @@ summary::marker {
     justify-self: end;
     white-space: nowrap;
 }
-
 .excel-wagon-btn:hover {
     background: #1e5c3a;
 }
@@ -549,18 +547,9 @@ summary::marker {
 .history-table tr:nth-child(even) {
     background-color: #f9f9f9;
 }
-
 .history-table tr:hover {
     background-color: #f1f1f1;
 }
-
-.history-table th:nth-child(1), .history-table td:nth-child(1) { width: 100px; }
-.history-table th:nth-child(2), .history-table td:nth-child(2) { width: 120px; }
-.history-table th:nth-child(3), .history-table td:nth-child(3) { width: 120px; }
-.history-table th:nth-child(4), .history-table td:nth-child(4) { width: 150px; }
-.history-table th:nth-child(5), .history-table td:nth-child(5) { width: 150px; }
-.history-table th:nth-child(6), .history-table td:nth-child(6) { width: 250px; word-break: break-word; white-space: normal; }
-.history-table th:nth-child(7), .history-table td:nth-child(7) { width: 160px; }
 
 .edit-history-btn {
     background: none;
@@ -570,7 +559,6 @@ summary::marker {
     font-size: 14px;
     margin-left: 8px;
 }
-
 .edit-history-btn:hover {
     color: #e67e22;
 }
@@ -586,7 +574,7 @@ summary::marker {
     display: block;
 }
 
-/* Админка */
+/* ===== АДМИН-ПАНЕЛЬ ===== */
 .nav-bar {
     margin-bottom: 15px;
 }
@@ -615,11 +603,6 @@ tr:nth-child(even) {
 .btn-danger {
     background: #e74c3c;
 }
-
-.btn-excel {
-    background: #27ae60;
-}
-
 .delete-btn {
     background: #e74c3c;
     color: white;
@@ -627,4 +610,15 @@ tr:nth-child(even) {
     padding: 5px 10px;
     border-radius: 4px;
     cursor: pointer;
+}
+
+/* ===== АДАПТИВНОСТЬ ===== */
+@media (max-width: 768px) {
+    .control-box:first-child {
+        border-right: none;
+        padding-right: 0;
+    }
+    .control-box:last-child {
+        padding-left: 0;
+    }
 }
