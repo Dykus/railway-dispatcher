@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 """
 Точка входа в приложение «ЖД Диспетчерская».
-Запускает Flask-сервер и (опционально) иконку в системном трее.
+Запускает Flask-сервер и иконку в системном трее.
 """
 
 import os
 import sys
 import threading
 import webbrowser
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
 
 # Добавляем текущую директорию в путь
@@ -28,13 +30,16 @@ except ImportError:
     HAS_TRAY = False
     print("Для работы иконки в трее установите: pip install pystray pillow")
 
+
 def create_tray_icon():
     """Создаёт и запускает иконку в системном трее."""
     if not HAS_TRAY:
         return
 
+    # Пытаемся загрузить иконку из файла
+    img = None
     icon_path = None
-    for ext in ['.png', '.ico']:
+    for ext in ['.ico', '.png']:
         test_path = os.path.join(BASE_DIR, f'icon{ext}')
         if os.path.exists(test_path):
             icon_path = test_path
@@ -44,10 +49,12 @@ def create_tray_icon():
         try:
             img = Image.open(icon_path)
             img = img.resize((64, 64), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS)
-        except:
+        except Exception as e:
+            logging.warning(f"Не удалось загрузить иконку: {e}")
             img = None
 
-    if not icon_path or img is None:
+    # Если иконку не удалось загрузить, рисуем стандартную
+    if img is None:
         img = Image.new('RGB', (64, 64), color='#2c3e50')
         draw = ImageDraw.Draw(img)
         draw.rectangle([(0, 50), (64, 58)], fill='#7f8c8d')
@@ -76,33 +83,72 @@ def create_tray_icon():
     icon = pystray.Icon("railway_dispatcher", img, "ЖД Диспетчерская", menu)
     icon.run()
 
+
+def setup_logging():
+    """Настраивает подробное логирование в файл с ротацией."""
+    log_file = os.path.join(BASE_DIR, 'railway_dispatcher.log')
+
+    # Создаём обработчик с ротацией: макс. 5 МБ, храним 5 старых файлов
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=5 * 1024 * 1024,  # 5 MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    file_handler.setLevel(logging.DEBUG)
+
+    # Формат сообщений
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # Получаем корневой логгер и настраиваем его
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(file_handler)
+
+    # Если не в EXE-режиме, добавляем вывод в консоль
+    if not getattr(sys, 'frozen', False):
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+
+    # Настраиваем логгеры Flask и Werkzeug, чтобы они тоже писали в наш лог
+    logging.getLogger('werkzeug').setLevel(logging.INFO)
+    logging.getLogger('flask').setLevel(logging.INFO)
+
+
 def print_startup_info():
-    """Выводит информацию о запуске в консоль."""
-    print("=" * 50)
-    print(f"🚂 ЖД Диспетчерская запущена (версия {APP_VERSION})")
-    print("=" * 50)
-    print(f"📁 База данных: {os.path.join(BASE_DIR, 'rail_yard.db')}")
-    print(f"🌐 Локальный адрес: http://127.0.0.1:5000")
+    """Выводит информацию о запуске (через логгер)."""
+    logging.info("=" * 50)
+    logging.info(f"🚂 ЖД Диспетчерская запущена (версия {APP_VERSION})")
+    logging.info("=" * 50)
+    logging.info(f"📁 База данных: {os.path.join(BASE_DIR, 'rail_yard.db')}")
+    logging.info(f"🌐 Локальный адрес: http://127.0.0.1:5000")
     try:
         import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
-        print(f"🌐 Сетевой адрес: http://{local_ip}:5000")
+        logging.info(f"🌐 Сетевой адрес: http://{local_ip}:5000")
         global SERVER_IP
         SERVER_IP = local_ip
     except:
-        print("🌐 Сетевой адрес: не удалось определить")
-    print("=" * 50)
-    print("Для остановки нажмите Ctrl+C или используйте иконку в трее")
-    print("=" * 50)
+        logging.info("🌐 Сетевой адрес: не удалось определить")
+    logging.info("=" * 50)
+    logging.info("Для остановки нажмите Ctrl+C или используйте иконку в трее")
+    logging.info("=" * 50)
+
 
 if __name__ == '__main__':
+    # Настройка логирования (должна быть первой)
+    setup_logging()
+
     # Создаём приложение
     app = create_app()
 
-    # Выводим стартовую информацию
+    # Выводим стартовую информацию (попадёт в лог)
     print_startup_info()
 
     # Запускаем сервер в отдельном потоке
@@ -116,5 +162,5 @@ if __name__ == '__main__':
     if HAS_TRAY:
         create_tray_icon()
     else:
-        print("Иконка в трее не доступна. Для выхода нажмите Ctrl+C")
+        logging.warning("Иконка в трее не доступна. Для выхода нажмите Ctrl+C")
         server_thread.join()
