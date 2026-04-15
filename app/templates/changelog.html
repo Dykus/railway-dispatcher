@@ -3,18 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Список изменений</title>
-    <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
-        h1 { color: #2c3e50; }
-        .nav-bar { margin-bottom: 20px; }
-        .btn {
-            display: inline-block; padding: 8px 15px; color: white; text-decoration: none;
-            border-radius: 5px; font-weight: bold; margin-right: 5px;
-        }
-        .btn-primary { background: #3498db; }
-        pre { background: #f8f9fa; padding: 20px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 <div class="container">

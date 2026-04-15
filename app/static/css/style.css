@@ -43,6 +43,7 @@ h1 {
     flex-wrap: wrap;
 }
 
+/* Базовый класс кнопки */
 .btn {
     color: white;
     padding: 8px 15px;
@@ -54,17 +55,27 @@ h1 {
     align-items: center;
     gap: 5px;
     cursor: pointer;
+    background: #3498db; /* базовый синий */
 }
 
-/* Цвета взяты из оригинального HTML_TEMPLATE */
-.btn-history { background: #2980b9; }
-.btn-excel { background: #217346; }
-.btn-archive { background: #7f8c8d; }
-.btn-help { background: #16a085; }
-.btn-changelog { background: #2c3e50; }
-.btn-backup { background: #27ae60; }
-.btn-add { background: #27ae60; }
-.btn-move { background: #f39c12; }
+/* Цветовые варианты кнопок */
+.btn-primary   { background: #3498db; } /* синий */
+.btn-success   { background: #27ae60; } /* зелёный */
+.btn-danger    { background: #e74c3c; } /* красный */
+.btn-excel     { background: #217346; } /* тёмно-зелёный (Excel) */
+.btn-warning   { background: #f39c12; } /* оранжевый */
+.btn-changelog { background: #2c3e50; } /* тёмно-синий */
+.btn-backup    { background: #27ae60; } /* зелёный (бэкапы) */
+.btn-history   { background: #2980b9; }
+.btn-archive   { background: #7f8c8d; }
+.btn-help      { background: #16a085; }
+.btn-add       { background: #27ae60; }
+.btn-move      { background: #f39c12; }
+
+/* Кнопка в панели перемещения */
+.btn-move {
+    background: #f39c12;
+}
 
 /* Стили для навигации в истории и архиве */
 .nav-links {
@@ -86,8 +97,8 @@ h1 {
 
 .nav-link-history { background: #3498db; }
 .nav-link-archive { background: #7f8c8d; }
-.nav-link-excel { background: #217346; }
-.nav-link-help { background: #16a085; }
+.nav-link-excel   { background: #217346; }
+.nav-link-help    { background: #16a085; }
 
 /* ===== ФОРМЫ И ЭЛЕМЕНТЫ УПРАВЛЕНИЯ ===== */
 .controls {
@@ -576,13 +587,14 @@ summary::marker {
 
 /* ===== АДМИН-ПАНЕЛЬ ===== */
 .nav-bar {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 
 table {
     border-collapse: collapse;
     width: 100%;
     background: white;
+    margin-top: 20px;
 }
 
 th, td {
@@ -603,6 +615,7 @@ tr:nth-child(even) {
 .btn-danger {
     background: #e74c3c;
 }
+
 .delete-btn {
     background: #e74c3c;
     color: white;
