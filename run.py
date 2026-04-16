@@ -145,16 +145,40 @@ def print_startup_info():
 
 
 if __name__ == '__main__':
+    # --- Проверка единственного экземпляра приложения ---
+    try:
+        import win32event
+        import win32api
+        import winerror
+
+        mutex_name = "RailwayDispatcher_App_Mutex"
+        mutex = win32event.CreateMutex(None, False, mutex_name)
+        if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+            # Приложение уже запущено
+            print("Программа уже запущена. Второй экземпляр не может быть запущен.")
+            sys.exit(1)
+    except ImportError:
+        # Если pywin32 не установлен, пропускаем проверку (только для разработки)
+        logging.warning("pywin32 не установлен, проверка единственного экземпляра отключена.")
+    # ------------------------------------------------------
+
+    # Настройка логирования
     setup_logging()
+
+    # Создаём приложение
     app = create_app()
+
+    # Выводим стартовую информацию (попадёт в лог)
     print_startup_info()
 
+    # Запускаем сервер в отдельном потоке
     server_thread = threading.Thread(
         target=lambda: app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False),
         daemon=True
     )
     server_thread.start()
 
+    # Запускаем иконку в трее или просто ждём
     if HAS_TRAY:
         create_tray_icon()
     else:

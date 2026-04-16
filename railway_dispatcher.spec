@@ -22,11 +22,17 @@ for package in [
     'pystray',
     'PIL',
     'sqlite3',
+    'pywin32',           # ← добавляем для мьютекса
 ]:
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_datas
     binaries += pkg_binaries
     hiddenimports += pkg_hidden
+
+# Дополнительные скрытые импорты для Win32 API (на всякий случай)
+hiddenimports += collect_submodules('win32event')
+hiddenimports += collect_submodules('win32api')
+hiddenimports += collect_submodules('winerror')
 
 hiddenimports += collect_submodules('app')
 
@@ -84,11 +90,11 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,              # ← меняем на False (без консоли)
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',            # ← указываем иконку
+    icon='icon.ico',
 )
