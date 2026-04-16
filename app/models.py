@@ -12,7 +12,6 @@ import time
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-# Импортируем конфигурацию и вспомогательные функции
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DB_NAME, BACKUP_DIR, BACKUP_HOUR, BACKUP_KEEP_COUNT, CHANGELOG_PATH
@@ -74,16 +73,41 @@ def init_db():
                 )''')
     try:
         c.execute("ALTER TABLE ip_users ADD COLUMN is_admin INTEGER DEFAULT 0")
-    except:
-        pass
+    except: pass
     try:
         c.execute("ALTER TABLE ip_users ADD COLUMN role TEXT DEFAULT 'dispatcher'")
-    except:
-        pass
+    except: pass
     try:
         c.execute("ALTER TABLE ip_users ADD COLUMN access_allowed INTEGER DEFAULT 0")
-    except:
-        pass
+    except: pass
+    
+    # ===== НОВАЯ ТАБЛИЦА НАСТРОЕК =====
+    c.execute('''CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )''')
+    
+    # Установка значений по умолчанию, если таблица пуста
+    c.execute("SELECT COUNT(*) FROM app_settings")
+    if c.fetchone()[0] == 0:
+        default_settings = [
+            ('port', '5000'),
+            ('secret_key', 'rail_app_secret_key_change_me'),
+            ('backup_hour', str(BACKUP_HOUR)),
+            ('backup_keep_count', str(BACKUP_KEEP_COUNT)),
+            ('remote_enabled', '0'),
+            ('remote_path', ''),
+            ('remote_user', ''),
+            ('remote_password', ''),
+            ('log_max_mb', '5'),
+            ('log_backup_count', '5'),
+            ('refresh_interval', '5'),
+            ('theme', 'light'),
+            ('default_wagon_length', '10.0'),
+            ('wagon_spacing', '50.0')
+        ]
+        c.executemany("INSERT INTO app_settings (key, value) VALUES (?, ?)", default_settings)
+    # ===== КОНЕЦ НОВОГО БЛОКА =====
     
     c.execute("UPDATE ip_users SET role='admin', access_allowed=1 WHERE is_admin=1 AND (role='dispatcher' OR role='')")
     c.execute("UPDATE ip_users SET access_allowed=1 WHERE is_admin=1")
@@ -108,6 +132,39 @@ def init_db():
         print("[OK] База данных создана.")
     conn.commit()
     conn.close()
+
+
+# ===== НОВЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ =====
+def get_setting(key, default=None):
+    """Получает значение настройки из БД."""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return row[0]
+    return default
+
+
+def set_setting(key, value):
+    """Сохраняет настройку в БД."""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+    conn.close()
+
+
+def get_all_settings():
+    """Возвращает словарь всех настроек."""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT key, value FROM app_settings")
+    rows = c.fetchall()
+    conn.close()
+    return dict(rows)
+# ===== КОНЕЦ НОВЫХ ФУНКЦИЙ =====
 
 
 def clean_action_log():

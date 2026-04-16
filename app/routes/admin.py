@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Административные маршруты: бэкапы, журнал действий, управление IP, список изменений.
+Административные маршруты: бэкапы, журнал действий, управление IP, список изменений, настройки.
 """
 
 from flask import Blueprint, request, send_file, flash, redirect, url_for, render_template, jsonify
@@ -14,7 +14,7 @@ from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from config import BACKUP_DIR, DB_NAME, CHANGELOG_PATH, APP_VERSION
-from app.models import get_conn
+from app.models import get_conn, get_all_settings, set_setting
 from app.utils import log_action, parse_flexible_date
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -324,3 +324,27 @@ def changelog():
     with open(CHANGELOG_PATH, 'r', encoding='utf-8') as f:
         content = f.read()
     return render_template('changelog.html', content=content)
+
+
+# ==================== НАСТРОЙКИ ====================
+@admin_bp.route('/settings', methods=['GET', 'POST'])
+def settings():
+    if request.user_role != 'admin':
+        return "Доступ запрещён", 403
+
+    if request.method == 'POST':
+        # Сохраняем все настройки из формы
+        for key in ['port', 'secret_key', 'backup_hour', 'backup_keep_count',
+                    'remote_path', 'remote_user', 'remote_password',
+                    'log_max_mb', 'log_backup_count', 'refresh_interval',
+                    'theme', 'default_wagon_length', 'wagon_spacing']:
+            value = request.form.get(key, '')
+            set_setting(key, value)
+        # Чекбокс remote_enabled
+        set_setting('remote_enabled', '1' if request.form.get('remote_enabled') else '0')
+        flash('Настройки сохранены', 'success')
+        return redirect(url_for('admin.settings'))
+
+    # GET: загружаем текущие настройки
+    settings_dict = get_all_settings()
+    return render_template('admin_settings.html', settings=settings_dict)
