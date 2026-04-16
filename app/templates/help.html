@@ -3,18 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <title>Инструкция диспетчера - ЖД Диспетчерская</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        h2 { color: #2980b9; margin-top: 25px; }
-        .nav-link { display: inline-block; padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; margin-bottom: 20px; }
-        .color-box { display: inline-block; width: 20px; height: 20px; border-radius: 4px; vertical-align: middle; margin-right: 8px; }
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #ecf0f1; }
-        .note { background: #fef9e7; padding: 10px; border-left: 4px solid #f39c12; margin: 15px 0; }
-        .address { background: #e8f4fd; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 1.2em; text-align: center; margin: 20px 0; }
+        .address {
+            background: #e8f4fd;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 1.2em;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .note {
+            background: #fef9e7;
+            padding: 10px;
+            border-left: 4px solid #f39c12;
+            margin: 15px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #ecf0f1;
+        }
+        .color-box {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
     </style>
 </head>
 <body>
@@ -105,6 +131,9 @@
     
     <div class="note">📞 При возникновении проблем обратитесь к системному администратору.</div>
     <p style="text-align: center; margin-top: 30px;">© ЖД Диспетчерская, АО "Знамя"<br>Версия {{ version }} (сетевая, для диспетчера)</p>
+
+    <!-- Скрытая ссылка на подробное описание программы -->
+    <p style="text-align: center; margin-top: 5px; color: #f0f2f5;"><a href="/about" style="color: #f0f2f5; text-decoration: none;">•</a></p>
 </div>
 </body>
 </html>

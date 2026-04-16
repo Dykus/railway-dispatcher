@@ -40,7 +40,7 @@ BACKUP_HOUR = 3
 BACKUP_KEEP_COUNT = 30
 
 # ==================== ПРОЧИЕ КОНСТАНТЫ ====================
-APP_VERSION = "3.0.3"
+APP_VERSION = "3.0.4"
 RETURN_TRACK_NAMES = ["Пост №2", "Ст. Черкасов Камень"]
 
 # Секретный ключ Flask

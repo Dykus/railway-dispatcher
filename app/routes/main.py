@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Основные маршруты: главная страница, добавление, перемещение, архивация, справка.
+Основные маршруты: главная страница, добавление, перемещение, архивация, справка, о программе.
 """
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
@@ -46,6 +46,12 @@ def help_page():
     except:
         server_ip = "IP_вашего_сервера"
     return render_template('help.html', server_ip=server_ip, version=APP_VERSION)
+
+
+@main_bp.route('/about')
+def about_page():
+    """Скрытая страница с подробным описанием программы."""
+    return render_template('about.html')
 
 
 @main_bp.route('/add', methods=['POST'])
