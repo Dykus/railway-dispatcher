@@ -334,10 +334,13 @@ def settings():
 
     if request.method == 'POST':
         # Сохраняем все настройки из формы
-        for key in ['port', 'secret_key', 'backup_hour', 'backup_keep_count',
-                    'remote_path', 'remote_user', 'remote_password',
-                    'log_max_mb', 'log_backup_count', 'refresh_interval',
-                    'theme', 'default_wagon_length', 'wagon_spacing']:
+        keys = [
+            'port', 'secret_key', 'backup_hour', 'backup_keep_count',
+            'remote_path', 'remote_user', 'remote_password',
+            'log_max_mb', 'log_backup_count', 'refresh_interval',
+            'theme', 'default_wagon_length', 'wagon_spacing'
+        ]
+        for key in keys:
             value = request.form.get(key, '')
             set_setting(key, value)
         # Чекбокс remote_enabled

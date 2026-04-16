@@ -76,19 +76,27 @@
 
     <h1>⚙️ Настройки приложения</h1>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
     <form method="post">
         <!-- ===== ОСНОВНЫЕ ===== -->
         <div class="settings-section">
             <h3>📌 Основные</h3>
             <div class="form-row">
                 <label>Порт сервера:</label>
-                <input type="number" name="port" value="5000" min="1" max="65535">
+                <input type="number" name="port" value="{{ settings.get('port', '5000') }}" min="1" max="65535">
             </div>
             <div class="hint">Требуется перезапуск приложения</div>
 
             <div class="form-row">
                 <label>Секретный ключ:</label>
-                <input type="text" name="secret_key" value="rail_app_secret_key_change_me" style="width:400px;">
+                <input type="text" name="secret_key" value="{{ settings.get('secret_key', '') }}" style="width:400px;">
                 <button type="button" onclick="generateKey()" style="margin-left:10px;">🔄 Сгенерировать</button>
             </div>
             <div class="hint">После смены все пользователи будут разлогинены</div>
@@ -99,11 +107,11 @@
             <h3>💾 Резервное копирование</h3>
             <div class="form-row">
                 <label>Час авт. бэкапа (0-23):</label>
-                <input type="number" name="backup_hour" value="3" min="0" max="23">
+                <input type="number" name="backup_hour" value="{{ settings.get('backup_hour', '3') }}" min="0" max="23">
             </div>
             <div class="form-row">
                 <label>Хранить копий:</label>
-                <input type="number" name="backup_keep_count" value="30" min="1" max="100">
+                <input type="number" name="backup_keep_count" value="{{ settings.get('backup_keep_count', '30') }}" min="1" max="100">
             </div>
         </div>
 
@@ -112,16 +120,16 @@
             <h3>🗄️ Удалённое копирование (сетевая папка)</h3>
             <div class="form-row">
                 <label>
-                    <input type="checkbox" name="remote_enabled"> Включить копирование
+                    <input type="checkbox" name="remote_enabled" value="1" {% if settings.get('remote_enabled', '0') == '1' %}checked{% endif %}> Включить копирование
                 </label>
             </div>
             <div class="form-row">
                 <label>Сетевой путь (UNC):</label>
-                <input type="text" name="remote_path" placeholder="\\server\share\backup" style="width:400px;">
+                <input type="text" name="remote_path" value="{{ settings.get('remote_path', '') }}" placeholder="\\server\share\backup" style="width:400px;">
             </div>
             <div class="form-row">
                 <label>Имя пользователя:</label>
-                <input type="text" name="remote_user" placeholder="DOMAIN\User">
+                <input type="text" name="remote_user" value="{{ settings.get('remote_user', '') }}" placeholder="DOMAIN\User">
             </div>
             <div class="form-row">
                 <label>Пароль:</label>
@@ -134,11 +142,11 @@
             <h3>📝 Логирование</h3>
             <div class="form-row">
                 <label>Макс. размер лога (МБ):</label>
-                <input type="number" name="log_max_mb" value="5" min="1" max="100">
+                <input type="number" name="log_max_mb" value="{{ settings.get('log_max_mb', '5') }}" min="1" max="100">
             </div>
             <div class="form-row">
                 <label>Количество файлов ротации:</label>
-                <input type="number" name="log_backup_count" value="5" min="1" max="20">
+                <input type="number" name="log_backup_count" value="{{ settings.get('log_backup_count', '5') }}" min="1" max="20">
             </div>
         </div>
 
@@ -147,12 +155,12 @@
             <h3>🖥️ Интерфейс</h3>
             <div class="form-row">
                 <label>Интервал обновления (сек):</label>
-                <input type="number" name="refresh_interval" value="5" min="2" max="30">
+                <input type="number" name="refresh_interval" value="{{ settings.get('refresh_interval', '5') }}" min="2" max="30">
             </div>
             <div class="form-row">
                 <label>Тема оформления:</label>
                 <select name="theme">
-                    <option value="light" selected>Светлая</option>
+                    <option value="light" {% if settings.get('theme', 'light') == 'light' %}selected{% endif %}>Светлая</option>
                     <option value="dark" disabled>Тёмная (в разработке)</option>
                 </select>
             </div>
@@ -163,11 +171,11 @@
             <h3>🛤️ Пути и вагоны</h3>
             <div class="form-row">
                 <label>Длина нового вагона (м):</label>
-                <input type="number" name="default_wagon_length" value="10.0" step="0.1" min="1">
+                <input type="number" name="default_wagon_length" value="{{ settings.get('default_wagon_length', '10.0') }}" step="0.1" min="1">
             </div>
             <div class="form-row">
                 <label>Интервал между вагонами (м):</label>
-                <input type="number" name="wagon_spacing" value="50.0" step="0.1" min="0">
+                <input type="number" name="wagon_spacing" value="{{ settings.get('wagon_spacing', '50.0') }}" step="0.1" min="0">
             </div>
 
             <h4 style="margin-top:25px;">Список путей</h4>
@@ -181,7 +189,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Здесь будет цикл по путям, пока статический пример -->
+                    <!-- Пока статический пример, в будущем заменим на цикл по tracks -->
                     <tr>
                         <td>Ст. Черкасов Камень</td>
                         <td>1000.0</td>
@@ -213,7 +221,6 @@
 
 <script>
     function generateKey() {
-        // Простой генератор случайной строки
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=';
         let key = '';
         for (let i = 0; i < 32; i++) {
