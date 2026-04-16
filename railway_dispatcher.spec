@@ -83,7 +83,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='RailwayDispatcher',
+    name='RailwayDispatcher_v4_beta',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

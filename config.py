@@ -26,7 +26,7 @@ def get_resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 BASE_DIR = get_base_dir()
-DB_NAME = os.path.join(BASE_DIR, 'rail_yard.db')
+DB_NAME = os.path.join(BASE_DIR, 'rail_yard_v4.db')   # отдельная база для беты
 BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
 # CHANGELOG теперь внутри EXE (или рядом с .py)
 CHANGELOG_PATH = get_resource_path('CHANGELOG.txt')
@@ -40,7 +40,7 @@ BACKUP_HOUR = 3
 BACKUP_KEEP_COUNT = 30
 
 # ==================== ПРОЧИЕ КОНСТАНТЫ ====================
-APP_VERSION = "3.0.4"
+APP_VERSION = "4.0.0-beta"
 RETURN_TRACK_NAMES = ["Пост №2", "Ст. Черкасов Камень"]
 
 # Секретный ключ Flask
