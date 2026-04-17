@@ -334,16 +334,20 @@ def settings():
 
     if request.method == 'POST':
         # Сохраняем все настройки из формы
-        for key in ['port', 'secret_key', 'backup_hour', 'backup_keep_count',
-                    'remote_path', 'remote_user', 'remote_password',
-                    'log_max_mb', 'log_backup_count', 'refresh_interval',
-                    'theme', 'default_wagon_length', 'wagon_spacing']:
+        keys = [
+            'port', 'secret_key', 'backup_hour', 'backup_keep_count',
+            'remote_path', 'remote_user', 'remote_password',
+            'log_max_mb', 'log_backup_count', 'refresh_interval',
+            'theme', 'default_wagon_length', 'wagon_spacing'
+        ]
+        for key in keys:
             value = request.form.get(key, '')
             set_setting(key, value)
-        # Чекбокс remote_enabled
         set_setting('remote_enabled', '1' if request.form.get('remote_enabled') else '0')
         flash('Настройки сохранены', 'success')
-        return redirect(url_for('admin.settings'))
+        # После сохранения сразу рендерим шаблон с обновлёнными настройками, без редиректа
+        settings_dict = get_all_settings()
+        return render_template('admin_settings.html', settings=settings_dict)
 
     # GET: загружаем текущие настройки
     settings_dict = get_all_settings()
