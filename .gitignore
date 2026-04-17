@@ -23,6 +23,7 @@ dist/
 # Системные файлы
 .DS_Store
 Thumbs.db
+RailwayDispatcher.exe
 
 # Файлы логов
 *.log
