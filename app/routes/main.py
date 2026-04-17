@@ -10,12 +10,11 @@ import os
 import socket
 import sqlite3
 
-# Добавляем пути для импорта из корня и app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from config import APP_VERSION
 from app.models import (
     get_dashboard_data, move_wagon, depart_wagon, log_movement, log_action,
-    find_slot_on_track, compact_track, get_conn, get_setting   # <-- добавлен get_setting
+    find_slot_on_track, compact_track, get_conn, get_setting
 )
 
 main_bp = Blueprint('main', __name__)
@@ -25,7 +24,7 @@ main_bp = Blueprint('main', __name__)
 def index():
     tracks, move_list = get_dashboard_data()
     is_admin = (request.user_role == 'admin')
-    refresh_interval = int(get_setting('refresh_interval', '5'))  # <-- из БД
+    refresh_interval = int(get_setting('refresh_interval', '5'))
     return render_template('index.html',
                            tracks=tracks,
                            move_list=move_list,
@@ -52,7 +51,6 @@ def help_page():
 
 @main_bp.route('/about')
 def about_page():
-    """Скрытая страница с подробным описанием программы."""
     return render_template('about.html')
 
 
@@ -172,7 +170,8 @@ def add_wagon():
         w_id, w_status, w_archived = existing
         if w_archived == 1:
             compact_track(track_id)
-            pos = find_slot_on_track(track_id, 10)[1]
+            wagon_len = float(get_setting('default_wagon_length', '10.0'))
+            pos = find_slot_on_track(track_id, wagon_len)[1]
             c.execute("""UPDATE wagons SET status = 'assigned', owner = ?, organization = ?, cargo_type = ?, track_id = ?, start_pos = ?, arrival_time = ?, departure_time = ?, local_departure_time = NULL, visit_count = 0, is_archived = 0 WHERE id = ?""",
                       (owner, org, note, track_id, float(pos), arrival_time, global_dep, w_id))
             conn.commit()
@@ -199,10 +198,11 @@ def add_wagon():
                                    refresh_interval=refresh_interval)
 
     compact_track(track_id)
-    pos = find_slot_on_track(track_id, 10)[1]
+    wagon_len = float(get_setting('default_wagon_length', '10.0'))
+    pos = find_slot_on_track(track_id, wagon_len)[1]
     try:
         c.execute("""INSERT INTO wagons (wagon_number, length, cargo_type, owner, organization, track_id, start_pos, arrival_time, departure_time, local_departure_time, visit_count, is_archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)""",
-                  (number, 10.0, note, owner, org, track_id, float(pos), arrival_time, global_dep, None))
+                  (number, wagon_len, note, owner, org, track_id, float(pos), arrival_time, global_dep, None))
         conn.commit()
         t_name = c.execute("SELECT name FROM tracks WHERE id=?", (track_id,)).fetchone()[0]
         conn.close()

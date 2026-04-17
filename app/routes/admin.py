@@ -333,7 +333,6 @@ def settings():
         return "Доступ запрещён", 403
 
     if request.method == 'POST':
-        # Сохраняем все настройки из формы
         keys = [
             'port', 'secret_key', 'backup_hour', 'backup_keep_count',
             'remote_path', 'remote_user', 'remote_password',
@@ -345,10 +344,7 @@ def settings():
             set_setting(key, value)
         set_setting('remote_enabled', '1' if request.form.get('remote_enabled') else '0')
         flash('Настройки сохранены', 'success')
-        # После сохранения сразу рендерим шаблон с обновлёнными настройками, без редиректа
-        settings_dict = get_all_settings()
-        return render_template('admin_settings.html', settings=settings_dict)
+        return redirect(url_for('admin.settings'))
 
-    # GET: загружаем текущие настройки
     settings_dict = get_all_settings()
     return render_template('admin_settings.html', settings=settings_dict)

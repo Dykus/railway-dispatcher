@@ -14,7 +14,7 @@ from collections import defaultdict
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import DB_NAME, BACKUP_DIR, BACKUP_HOUR, BACKUP_KEEP_COUNT, CHANGELOG_PATH
+from config import DB_NAME, BACKUP_DIR, CHANGELOG_PATH
 from app.utils import (
     get_conn, is_return_track, clean_note_for_db, log_action, format_date
 )
@@ -81,20 +81,19 @@ def init_db():
         c.execute("ALTER TABLE ip_users ADD COLUMN access_allowed INTEGER DEFAULT 0")
     except: pass
     
-    # ===== НОВАЯ ТАБЛИЦА НАСТРОЕК =====
+    # ===== ТАБЛИЦА НАСТРОЕК =====
     c.execute('''CREATE TABLE IF NOT EXISTS app_settings (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 )''')
     
-    # Установка значений по умолчанию, если таблица пуста
     c.execute("SELECT COUNT(*) FROM app_settings")
     if c.fetchone()[0] == 0:
         default_settings = [
             ('port', '5000'),
             ('secret_key', 'rail_app_secret_key_change_me'),
-            ('backup_hour', str(BACKUP_HOUR)),
-            ('backup_keep_count', str(BACKUP_KEEP_COUNT)),
+            ('backup_hour', '3'),
+            ('backup_keep_count', '30'),
             ('remote_enabled', '0'),
             ('remote_path', ''),
             ('remote_user', ''),
@@ -107,7 +106,6 @@ def init_db():
             ('wagon_spacing', '50.0')
         ]
         c.executemany("INSERT INTO app_settings (key, value) VALUES (?, ?)", default_settings)
-    # ===== КОНЕЦ НОВОГО БЛОКА =====
     
     c.execute("UPDATE ip_users SET role='admin', access_allowed=1 WHERE is_admin=1 AND (role='dispatcher' OR role='')")
     c.execute("UPDATE ip_users SET access_allowed=1 WHERE is_admin=1")
@@ -134,7 +132,7 @@ def init_db():
     conn.close()
 
 
-# ===== НОВЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ =====
+# ===== ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ =====
 def get_setting(key, default=None):
     """Получает значение настройки из БД."""
     conn = get_conn()
@@ -164,7 +162,6 @@ def get_all_settings():
     rows = c.fetchall()
     conn.close()
     return dict(rows)
-# ===== КОНЕЦ НОВЫХ ФУНКЦИЙ =====
 
 
 def clean_action_log():
@@ -183,7 +180,6 @@ def clean_action_log():
 
 # ==================== РЕЗЕРВНОЕ КОПИРОВАНИЕ ====================
 def get_last_auto_backup_time():
-    """Возвращает время последнего автоматического бэкапа."""
     auto_dir = os.path.join(BACKUP_DIR, 'auto')
     if not os.path.exists(auto_dir):
         return None
@@ -196,8 +192,8 @@ def get_last_auto_backup_time():
 
 
 def create_auto_backup():
-    """Создаёт автоматическую резервную копию БД."""
     try:
+        keep_count = int(get_setting('backup_keep_count', '30'))
         auto_dir = os.path.join(BACKUP_DIR, 'auto')
         if not os.path.exists(auto_dir):
             os.makedirs(auto_dir)
@@ -205,9 +201,8 @@ def create_auto_backup():
         backup_path = os.path.join(auto_dir, backup_name)
         shutil.copy2(DB_NAME, backup_path)
         all_backups = sorted(glob.glob(os.path.join(auto_dir, 'rail_yard_auto_*.db')), key=os.path.getmtime)
-        while len(all_backups) > BACKUP_KEEP_COUNT:
+        while len(all_backups) > keep_count:
             os.remove(all_backups.pop(0))
-        # Логирование (без контекста запроса, используем log_action из utils, но передаём system)
         from app.utils import log_action
         log_action('backup_auto', details=f"Автоматическая копия: {backup_path}")
         print(f"📦 Автоматический бэкап создан: {backup_path}")
@@ -216,11 +211,11 @@ def create_auto_backup():
 
 
 def schedule_daily_backup():
-    """Запускает фоновый поток для ежедневного бэкапа."""
     def backup_loop():
         while True:
             now = datetime.now()
-            next_run = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
+            backup_hour = int(get_setting('backup_hour', '3'))
+            next_run = now.replace(hour=backup_hour, minute=0, second=0, microsecond=0)
             if now >= next_run:
                 next_run += timedelta(days=1)
             wait_seconds = (next_run - now).total_seconds()
@@ -233,7 +228,6 @@ def schedule_daily_backup():
 
 # ==================== УПРАВЛЕНИЕ ВАГОНАМИ ====================
 def get_last_event_datetime(wagon_number):
-    """Возвращает дату и время последнего события вагона."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT timestamp FROM movement_history WHERE wagon_number = ? ORDER BY timestamp DESC LIMIT 1", (wagon_number,))
@@ -250,7 +244,6 @@ def get_last_event_datetime(wagon_number):
 
 
 def log_movement(wagon_number, action_type, from_track_name=None, to_track_name=None, note=None, custom_timestamp=None):
-    """Записывает событие в историю перемещений."""
     conn = get_conn()
     c = conn.cursor()
     timestamp = custom_timestamp if custom_timestamp else datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -262,22 +255,21 @@ def log_movement(wagon_number, action_type, from_track_name=None, to_track_name=
 
 
 def compact_track(track_id):
-    """Уплотняет вагоны на пути (пересчитывает start_pos)."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT id, length FROM wagons WHERE track_id = ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos ASC", (track_id,))
     wagons = c.fetchall()
     current_pos = 0.0
+    spacing = float(get_setting('wagon_spacing', '50.0'))
     for wag_id, wag_len in wagons:
         w_len = float(wag_len) if wag_len is not None else 10.0
         c.execute("UPDATE wagons SET start_pos = ? WHERE id = ?", (current_pos, wag_id))
-        current_pos += w_len + 50.0
+        current_pos += w_len + spacing
     conn.commit()
     conn.close()
 
 
 def find_slot_on_track(track_id, wagon_length):
-    """Находит свободную позицию на пути."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT total_length FROM tracks WHERE id = ?", (track_id,))
@@ -287,19 +279,19 @@ def find_slot_on_track(track_id, wagon_length):
         return None, 0.0
     c.execute("SELECT start_pos, length FROM wagons WHERE track_id = ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos", (track_id,))
     occupied = c.fetchall()
+    spacing = float(get_setting('wagon_spacing', '50.0'))
     if not occupied: 
         conn.close()
         return track_id, 0.0
     last_wagon = occupied[-1]
     last_pos = float(last_wagon[0]) if last_wagon[0] is not None else 0.0
     last_len = float(last_wagon[1]) if last_wagon[1] is not None else 10.0
-    next_pos = last_pos + last_len + 50 
+    next_pos = last_pos + last_len + spacing
     conn.close()
     return track_id, next_pos
 
 
 def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0, manual_start_str=None, new_note=None):
-    """Перемещает вагон на другой путь, устанавливает локальный срок."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT wagon_number, owner, organization, departure_time, track_id, cargo_type, visit_count, arrival_time FROM wagons WHERE id = ? AND is_archived = 0", (wagon_id,))
@@ -323,7 +315,6 @@ def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0
     new_local_dep_time = None
     total_mins = (int(local_days) * 24 * 60) + (int(local_hours) * 60) + int(local_mins)
     
-    # Определяем время события
     if manual_start_str and manual_start_str.strip():
         try:
             start_dt = datetime.strptime(manual_start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
@@ -357,7 +348,8 @@ def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0
         new_local_dep_time = None
     
     compact_track(new_track_id)
-    target_track, new_pos = find_slot_on_track(new_track_id, 10)
+    wagon_len = float(get_setting('default_wagon_length', '10.0'))
+    target_track, new_pos = find_slot_on_track(new_track_id, wagon_len)
     if target_track is None: 
         conn.close()
         return False, "Ошибка пути"
@@ -375,7 +367,6 @@ def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0
 
 
 def depart_wagon(wagon_id):
-    """Архивирует вагон (убытие)."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT wagon_number, track_id FROM wagons WHERE id = ? AND is_archived = 0", (wagon_id,))
@@ -411,7 +402,6 @@ def depart_wagon(wagon_id):
 
 def edit_wagon(wagon_id, new_owner=None, new_org=None, new_note=None,
                new_arrival_time=None, new_global_deadline=None, new_local_deadline=None):
-    """Редактирует данные вагона (кроме номера)."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT wagon_number, owner, organization, cargo_type, arrival_time, departure_time, local_departure_time, track_id FROM wagons WHERE id = ? AND is_archived = 0", (wagon_id,))
@@ -517,7 +507,6 @@ def edit_wagon(wagon_id, new_owner=None, new_org=None, new_note=None,
 
 # ==================== ПОЛУЧЕНИЕ ДАННЫХ ДЛЯ ИНТЕРФЕЙСА ====================
 def get_dashboard_data():
-    """Возвращает данные о путях и вагонах для главной страницы и API."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT id, name, total_length, track_type FROM tracks ORDER BY id")
@@ -633,7 +622,6 @@ def get_dashboard_data():
 
 
 def get_grouped_history():
-    """Возвращает сгруппированную историю активных вагонов."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("""SELECT m.id, m.wagon_number, m.action_type, m.from_track, m.to_track, m.note, m.timestamp, w.owner, w.organization, w.cargo_type 
@@ -686,7 +674,6 @@ def get_grouped_history():
 
 
 def get_grouped_archive_history():
-    """Возвращает сгруппированную историю архивированных вагонов."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("""SELECT a.wagon_number, a.action_type, a.from_track, a.to_track, a.note, a.timestamp, w.owner, w.organization, w.cargo_type 
