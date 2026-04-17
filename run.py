@@ -80,12 +80,16 @@ def create_tray_icon():
     def on_open(icon, item):
         webbrowser.open('http://127.0.0.1:5000')
 
+    def on_settings(icon, item):
+        webbrowser.open('http://127.0.0.1:5000/admin/settings')
+
     def on_quit(icon, item):
         icon.stop()
         os._exit(0)
 
     menu = pystray.Menu(
         pystray.MenuItem("🚂 Открыть", on_open),
+        pystray.MenuItem("⚙️ Настройки", on_settings),
         pystray.MenuItem("❌ Выход", on_quit)
     )
     icon = pystray.Icon("railway_dispatcher", img, "ЖД Диспетчерская", menu)
