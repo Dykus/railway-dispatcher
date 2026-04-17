@@ -1,3 +1,4 @@
+<!-- НАЧАЛО ФАЙЛА app/templates/admin_settings.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -62,6 +63,30 @@
             background: #34495e;
             color: white;
         }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 400px;
+            max-width: 90%;
+        }
+        .order-buttons {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -84,7 +109,7 @@
         {% endif %}
     {% endwith %}
 
-    <form method="post">
+    <form method="post" id="mainSettingsForm">
         <!-- ===== ОСНОВНЫЕ ===== -->
         <div class="settings-section">
             <h3>📌 Основные</h3>
@@ -179,7 +204,7 @@
             </div>
 
             <h4 style="margin-top:25px;">Список путей</h4>
-            <table class="track-table">
+            <table class="track-table" id="tracksTable">
                 <thead>
                     <tr>
                         <th>Название</th>
@@ -188,29 +213,33 @@
                         <th>Действия</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <!-- Пока статический пример, в будущем заменим на цикл по tracks -->
-                    <tr>
-                        <td>Ст. Черкасов Камень</td>
-                        <td>1000.0</td>
-                        <td>возвратный</td>
+                <tbody id="tracksBody">
+                    {% for track in tracks %}
+                    <tr data-track-id="{{ track[0] }}">
+                        <td>{{ track[1] }}</td>
+                        <td>{{ track[2] }}</td>
                         <td>
-                            <button type="button" class="btn btn-primary" style="padding:2px 8px;">✏️</button>
-                            <button type="button" class="btn btn-danger" style="padding:2px 8px;">🗑️</button>
+                            {% if track[3] == 'normal' %}Обычный
+                            {% elif track[3] == 'return' %}Возвратный
+                            {% else %}{{ track[3] }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-primary" style="padding:2px 8px;"
+                                    onclick="editTrack({{ track[0] }}, '{{ track[1] }}', {{ track[2] }}, '{{ track[3] }}')">✏️</button>
+                            <button type="button" class="btn btn-danger" style="padding:2px 8px;"
+                                    onclick="deleteTrack({{ track[0] }}, '{{ track[1] }}')">🗑️</button>
+                            <button type="button" class="btn btn-secondary" style="padding:2px 8px;" onclick="moveTrackUp(this)">⬆️</button>
+                            <button type="button" class="btn btn-secondary" style="padding:2px 8px;" onclick="moveTrackDown(this)">⬇️</button>
                         </td>
                     </tr>
-                    <tr>
-                        <td>Пост №2</td>
-                        <td>1000.0</td>
-                        <td>возвратный</td>
-                        <td>
-                            <button type="button" class="btn btn-primary" style="padding:2px 8px;">✏️</button>
-                            <button type="button" class="btn btn-danger" style="padding:2px 8px;">🗑️</button>
-                        </td>
-                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
-            <button type="button" class="btn btn-success" style="margin-top:10px;">➕ Добавить путь</button>
+            <div class="order-buttons">
+                <button type="button" class="btn btn-success" onclick="addTrack()">➕ Добавить путь</button>
+                <button type="button" class="btn btn-primary" onclick="saveTracksOrder()">💾 Сохранить порядок путей</button>
+            </div>
         </div>
 
         <div style="text-align: center; margin-top: 30px;">
@@ -218,6 +247,42 @@
         </div>
     </form>
 </div>
+
+<!-- Модальное окно для добавления/редактирования пути -->
+<div id="trackModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Добавить путь</h3>
+        <form method="post" id="trackForm">
+            <input type="hidden" name="action" id="trackAction" value="add_track">
+            <input type="hidden" name="track_id" id="trackId">
+            <div class="form-row">
+                <label>Название:</label>
+                <input type="text" name="track_name" id="trackName" required>
+            </div>
+            <div class="form-row">
+                <label>Длина (м):</label>
+                <input type="number" name="track_length" id="trackLength" step="0.1" min="1" required>
+            </div>
+            <div class="form-row">
+                <label>Тип:</label>
+                <select name="track_type" id="trackType">
+                    <option value="normal">Обычный</option>
+                    <option value="return">Возвратный</option>
+                </select>
+            </div>
+            <div style="text-align: right;">
+                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Форма для удаления пути -->
+<form method="post" id="deleteTrackForm" style="display:none;">
+    <input type="hidden" name="action" value="delete_track">
+    <input type="hidden" name="track_id" id="deleteTrackId">
+</form>
 
 <script>
     function generateKey() {
@@ -228,6 +293,97 @@
         }
         document.querySelector('input[name="secret_key"]').value = key;
     }
+
+    const modal = document.getElementById('trackModal');
+    const trackForm = document.getElementById('trackForm');
+    const trackAction = document.getElementById('trackAction');
+    const trackId = document.getElementById('trackId');
+    const trackName = document.getElementById('trackName');
+    const trackLength = document.getElementById('trackLength');
+    const trackType = document.getElementById('trackType');
+    const modalTitle = document.getElementById('modalTitle');
+
+    function addTrack() {
+        trackAction.value = 'add_track';
+        trackId.value = '';
+        trackName.value = '';
+        trackLength.value = '1000.0';
+        trackType.value = 'normal';
+        modalTitle.textContent = 'Добавить путь';
+        modal.style.display = 'flex';
+    }
+
+    function editTrack(id, name, length, type) {
+        trackAction.value = 'edit_track';
+        trackId.value = id;
+        trackName.value = name;
+        trackLength.value = length;
+        trackType.value = type;
+        modalTitle.textContent = 'Редактировать путь';
+        modal.style.display = 'flex';
+    }
+
+    function deleteTrack(id, name) {
+        if (confirm(`Удалить путь "${name}"? Это возможно только если на нём нет активных вагонов.`)) {
+            document.getElementById('deleteTrackId').value = id;
+            document.getElementById('deleteTrackForm').submit();
+        }
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // === Логика перемещения путей ===
+    function moveTrackUp(btn) {
+        const row = btn.closest('tr');
+        const prevRow = row.previousElementSibling;
+        if (prevRow) {
+            row.parentNode.insertBefore(row, prevRow);
+        }
+    }
+
+    function moveTrackDown(btn) {
+        const row = btn.closest('tr');
+        const nextRow = row.nextElementSibling;
+        if (nextRow) {
+            row.parentNode.insertBefore(nextRow, row);
+        }
+    }
+
+    function saveTracksOrder() {
+        const rows = document.querySelectorAll('#tracksBody tr');
+        const order = [];
+        rows.forEach(row => {
+            order.push(row.dataset.trackId);
+        });
+
+        fetch('/admin/tracks/save_order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ order: order })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Порядок путей сохранён');
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Ошибка сети: ' + error);
+        });
+    }
 </script>
 </body>
 </html>
+<!-- КОНЕЦ ФАЙЛА app/templates/admin_settings.html -->

@@ -37,7 +37,19 @@ def init_db():
                     wagon_number TEXT, action_type TEXT, from_track TEXT, to_track TEXT, note TEXT, timestamp TEXT, archived_date TEXT
                 )''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS tracks (id INTEGER PRIMARY KEY, name TEXT UNIQUE, total_length REAL, track_type TEXT DEFAULT 'normal')''')
+    c.execute('''CREATE TABLE IF NOT EXISTS tracks (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT UNIQUE,
+                    total_length REAL,
+                    track_type TEXT DEFAULT 'normal',
+                    sort_order INTEGER DEFAULT 0
+                )''')
+    
+    # Добавляем поле sort_order, если его ещё нет
+    try:
+        c.execute("ALTER TABLE tracks ADD COLUMN sort_order INTEGER DEFAULT 0")
+    except:
+        pass
     
     c.execute('''CREATE TABLE IF NOT EXISTS wagons (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -117,24 +129,26 @@ def init_db():
     c.execute("SELECT count(*) FROM tracks")
     if c.fetchone()[0] == 0:
         data = [
-            (1, 'Ст. Черкасов Камень', 1000.0, 'normal'),
-            (2, 'Пост №2', 1000.0, 'normal'),
-            (3, 'АО "Знамя" (Осмотр)', 1000.0, 'normal'),
-            (4, 'АО "Знамя" (Ремонт)', 1000.0, 'normal'),
-            (5, 'АО "Знамя" (База - Погрузка)', 1000.0, 'normal'),
-            (6, 'АО "Знамя" (Цех ППВВ - Погрузка)', 1000.0, 'normal'),
-            (7, 'АО "Знамя" (Отстой)', 1000.0, 'normal'),
-            (8, 'Резерв', 2000.0, 'normal')
+            (1, 'Ст. Черкасов Камень', 1000.0, 'normal', 1),
+            (2, 'Пост №2', 1000.0, 'normal', 2),
+            (3, 'АО "Знамя" (Осмотр)', 1000.0, 'normal', 3),
+            (4, 'АО "Знамя" (Ремонт)', 1000.0, 'normal', 4),
+            (5, 'АО "Знамя" (База - Погрузка)', 1000.0, 'normal', 5),
+            (6, 'АО "Знамя" (Цех ППВВ - Погрузка)', 1000.0, 'normal', 6),
+            (7, 'АО "Знамя" (Отстой)', 1000.0, 'normal', 7),
+            (8, 'Резерв', 2000.0, 'normal', 8)
         ]
-        c.executemany("INSERT INTO tracks VALUES (?, ?, ?, ?)", data)
+        c.executemany("INSERT INTO tracks (id, name, total_length, track_type, sort_order) VALUES (?, ?, ?, ?, ?)", data)
         print("[OK] База данных создана.")
+    else:
+        # Убедимся, что у всех путей есть sort_order (для старых БД)
+        c.execute("UPDATE tracks SET sort_order = id WHERE sort_order IS NULL OR sort_order = 0")
     conn.commit()
     conn.close()
 
 
 # ===== ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ =====
 def get_setting(key, default=None):
-    """Получает значение настройки из БД."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
@@ -146,7 +160,6 @@ def get_setting(key, default=None):
 
 
 def set_setting(key, value):
-    """Сохраняет настройку в БД."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", (key, value))
@@ -155,7 +168,6 @@ def set_setting(key, value):
 
 
 def get_all_settings():
-    """Возвращает словарь всех настроек."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT key, value FROM app_settings")
@@ -165,7 +177,6 @@ def get_all_settings():
 
 
 def clean_action_log():
-    """Удаляет старые записи из журнала действий."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("DELETE FROM action_log WHERE timestamp < datetime('now', '-6 months')")
@@ -191,6 +202,31 @@ def get_last_auto_backup_time():
     return datetime.fromtimestamp(os.path.getmtime(last_backup))
 
 
+def copy_backup_to_network(backup_filename):
+    enabled = get_setting('remote_enabled', '0') == '1'
+    if not enabled:
+        return False
+    remote_path = get_setting('remote_path', '').strip()
+    if not remote_path:
+        return False
+    remote_user = get_setting('remote_user', '').strip()
+    remote_password = get_setting('remote_password', '').strip()
+
+    local_path = os.path.join(BACKUP_DIR, 'auto', backup_filename)
+    remote_full = os.path.join(remote_path, backup_filename)
+
+    try:
+        if remote_user and remote_password:
+            net_use_cmd = f'net use "{remote_path}" /user:{remote_user} {remote_password} >nul 2>&1'
+            os.system(net_use_cmd)
+        shutil.copy2(local_path, remote_full)
+        log_action('backup_remote', details=f"Бэкап {backup_filename} скопирован на {remote_path}")
+        return True
+    except Exception as e:
+        log_action('backup_remote_error', details=f"Ошибка копирования на {remote_path}: {e}")
+        return False
+
+
 def create_auto_backup():
     try:
         keep_count = int(get_setting('backup_keep_count', '30'))
@@ -203,9 +239,10 @@ def create_auto_backup():
         all_backups = sorted(glob.glob(os.path.join(auto_dir, 'rail_yard_auto_*.db')), key=os.path.getmtime)
         while len(all_backups) > keep_count:
             os.remove(all_backups.pop(0))
-        from app.utils import log_action
         log_action('backup_auto', details=f"Автоматическая копия: {backup_path}")
         print(f"📦 Автоматический бэкап создан: {backup_path}")
+
+        copy_backup_to_network(backup_name)
     except Exception as e:
         print(f"⚠️ Ошибка автоматического бэкапа: {e}")
 
@@ -224,6 +261,121 @@ def schedule_daily_backup():
             create_auto_backup()
     thread = threading.Thread(target=backup_loop, daemon=True)
     thread.start()
+
+
+# ==================== УПРАВЛЕНИЕ ПУТЯМИ ====================
+def get_all_tracks():
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id, name, total_length, track_type FROM tracks ORDER BY sort_order ASC")
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def add_track(name, total_length, track_type='normal'):
+    conn = get_conn()
+    c = conn.cursor()
+    try:
+        # Определяем максимальный sort_order
+        c.execute("SELECT MAX(sort_order) FROM tracks")
+        max_order = c.fetchone()[0] or 0
+        c.execute("INSERT INTO tracks (name, total_length, track_type, sort_order) VALUES (?, ?, ?, ?)",
+                  (name.strip(), float(total_length), track_type, max_order + 1))
+        conn.commit()
+        conn.close()
+        log_action('track_add', details=f"Добавлен путь: {name}")
+        return True, f"Путь '{name}' добавлен"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, f"Путь с именем '{name}' уже существует"
+    except Exception as e:
+        conn.close()
+        return False, f"Ошибка: {e}"
+
+
+def update_track(track_id, name, total_length, track_type):
+    conn = get_conn()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE tracks SET name = ?, total_length = ?, track_type = ? WHERE id = ?",
+                  (name.strip(), float(total_length), track_type, track_id))
+        conn.commit()
+        conn.close()
+        log_action('track_edit', details=f"Изменён путь id={track_id}: {name}")
+        return True, f"Путь '{name}' обновлён"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, f"Путь с именем '{name}' уже существует"
+    except Exception as e:
+        conn.close()
+        return False, f"Ошибка: {e}"
+
+
+def delete_track(track_id):
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM wagons WHERE track_id = ? AND is_archived = 0", (track_id,))
+    count = c.fetchone()[0]
+    if count > 0:
+        conn.close()
+        return False, f"Невозможно удалить путь: на нём находятся {count} активных вагонов"
+    try:
+        c.execute("DELETE FROM tracks WHERE id = ?", (track_id,))
+        conn.commit()
+        conn.close()
+        log_action('track_delete', details=f"Удалён путь id={track_id}")
+        return True, "Путь удалён"
+    except Exception as e:
+        conn.close()
+        return False, f"Ошибка: {e}"
+
+
+def move_track_up(track_id):
+    """Перемещает путь на одну позицию вверх (уменьшает sort_order)."""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT sort_order FROM tracks WHERE id = ?", (track_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return False
+    current_order = row[0]
+    # Найти предыдущий путь (максимальный sort_order меньше текущего)
+    c.execute("SELECT id, sort_order FROM tracks WHERE sort_order < ? ORDER BY sort_order DESC LIMIT 1", (current_order,))
+    prev = c.fetchone()
+    if prev:
+        prev_id, prev_order = prev
+        # Меняем sort_order местами
+        c.execute("UPDATE tracks SET sort_order = ? WHERE id = ?", (prev_order, track_id))
+        c.execute("UPDATE tracks SET sort_order = ? WHERE id = ?", (current_order, prev_id))
+        conn.commit()
+        log_action('track_move', details=f"Путь id={track_id} перемещён вверх")
+    conn.close()
+    return True
+
+
+def move_track_down(track_id):
+    """Перемещает путь на одну позицию вниз (увеличивает sort_order)."""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT sort_order FROM tracks WHERE id = ?", (track_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return False
+    current_order = row[0]
+    # Найти следующий путь (минимальный sort_order больше текущего)
+    c.execute("SELECT id, sort_order FROM tracks WHERE sort_order > ? ORDER BY sort_order ASC LIMIT 1", (current_order,))
+    next_row = c.fetchone()
+    if next_row:
+        next_id, next_order = next_row
+        c.execute("UPDATE tracks SET sort_order = ? WHERE id = ?", (next_order, track_id))
+        c.execute("UPDATE tracks SET sort_order = ? WHERE id = ?", (current_order, next_id))
+        conn.commit()
+        log_action('track_move', details=f"Путь id={track_id} перемещён вниз")
+    conn.close()
+    return True
 
 
 # ==================== УПРАВЛЕНИЕ ВАГОНАМИ ====================
@@ -509,13 +661,13 @@ def edit_wagon(wagon_id, new_owner=None, new_org=None, new_note=None,
 def get_dashboard_data():
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, name, total_length, track_type FROM tracks ORDER BY id")
+    c.execute("SELECT id, name, total_length, track_type FROM tracks ORDER BY sort_order ASC")
     tracks_raw = c.fetchall()
     c.execute("""SELECT w.id, w.wagon_number, w.length, w.cargo_type, w.owner, w.organization, w.track_id, w.start_pos, w.arrival_time, w.departure_time, w.local_departure_time, t.name, w.visit_count 
                  FROM wagons w 
                  JOIN tracks t ON w.track_id = t.id 
                  WHERE w.status != 'departed' AND w.is_archived = 0 
-                 ORDER BY t.id, w.start_pos""")
+                 ORDER BY t.sort_order ASC, w.start_pos ASC""")
     all_wagons_raw = c.fetchall()
     conn.close()
     

@@ -1,37 +1,69 @@
+<!-- НАЧАЛО ФАЙЛА app/templates/admin_ip_users.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Привязка IP к пользователям</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background: #f0f2f5; margin: 0; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; margin-top: 0; }
-        .btn { display: inline-block; padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; margin-right: 5px; font-size: 14px; border: none; cursor: pointer; }
-        .btn-success { background: #27ae60; }
-        .btn-danger { background: #e74c3c; }
-        form { background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
-        input, select { padding: 8px; margin: 5px 5px 5px 0; border: 1px solid #bdc3c7; border-radius: 4px; }
-        label { margin-right: 10px; }
-        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
-        th { background: #34495e; color: white; font-weight: bold; }
-        tr:nth-child(even) { background: #f9f9f9; }
-        .delete-btn { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-        .nav-bar { margin-bottom: 20px; }
+        /* Дополнительные стили для этой страницы */
+        .ip-form {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .ip-form h3 {
+            margin-top: 0;
+        }
+        .ip-form input, .ip-form select {
+            padding: 8px;
+            margin: 5px 5px 5px 0;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+        }
+        .ip-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            margin-top: 20px;
+        }
+        .ip-table th, .ip-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .ip-table th {
+            background: #34495e;
+            color: white;
+            font-weight: bold;
+        }
+        .ip-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>🔗 Привязка IP к именам пользователей</h1>
     <div class="nav-bar">
-        <a href="/" class="btn">🏠 На главную</a>
-        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
-        <a href="/admin/backups" class="btn">💾 Бэкапы</a>
-        <a href="/admin/changelog" class="btn">📋 Список изменений</a>
+        <a href="/" class="btn btn-primary">🏠 На главную</a>
+        <a href="/admin/logs" class="btn btn-primary">📜 Журнал действий</a>
+        <a href="/admin/backups" class="btn btn-primary">💾 Бэкапы</a>
+        <a href="/admin/changelog" class="btn btn-primary">📋 Список изменений</a>
+        <a href="/admin/settings" class="btn btn-primary">⚙️ Настройки</a>
     </div>
 
-    <form method="POST">
+    <form method="POST" class="ip-form">
         <h3>Добавить / изменить привязку</h3>
         <input type="text" name="ip_address" placeholder="IP-адрес (например, 192.168.1.100)" required>
         <input type="text" name="username" placeholder="Имя пользователя" required>
@@ -47,7 +79,7 @@
     </form>
 
     <h3>Текущие привязки</h3>
-    <table>
+    <table class="ip-table">
         <thead>
             <tr>
                 <th>IP-адрес</th>
@@ -69,7 +101,7 @@
                 <td>
                     <form method="POST" style="margin:0; padding:0; display:inline;" onsubmit="return confirm('Удалить привязку для {{ ip }}?')">
                         <input type="hidden" name="delete_ip" value="{{ ip }}">
-                        <button type="submit" class="btn btn-danger delete-btn">❌ Удалить</button>
+                        <button type="submit" class="delete-btn">❌ Удалить</button>
                     </form>
                 </td>
             </tr>
@@ -79,3 +111,4 @@
 </div>
 </body>
 </html>
+<!-- КОНЕЦ ФАЙЛА app/templates/admin_ip_users.html -->
