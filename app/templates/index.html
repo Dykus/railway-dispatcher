@@ -219,5 +219,10 @@
     </div>
 </div>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+    // Установка интервала обновления дашборда из настроек
+    const refreshInterval = {{ refresh_interval }} * 1000;
+    setInterval(updateDashboard, refreshInterval);
+</script>
 </body>
 </html>

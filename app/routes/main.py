@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from config import APP_VERSION
 from app.models import (
     get_dashboard_data, move_wagon, depart_wagon, log_movement, log_action,
-    find_slot_on_track, compact_track, get_conn
+    find_slot_on_track, compact_track, get_conn, get_setting   # <-- добавлен get_setting
 )
 
 main_bp = Blueprint('main', __name__)
@@ -25,6 +25,7 @@ main_bp = Blueprint('main', __name__)
 def index():
     tracks, move_list = get_dashboard_data()
     is_admin = (request.user_role == 'admin')
+    refresh_interval = int(get_setting('refresh_interval', '5'))  # <-- из БД
     return render_template('index.html',
                            tracks=tracks,
                            move_list=move_list,
@@ -33,7 +34,8 @@ def index():
                            move_form_data=None,
                            request=request,
                            is_admin=is_admin,
-                           version=APP_VERSION)
+                           version=APP_VERSION,
+                           refresh_interval=refresh_interval)
 
 
 @main_bp.route('/help')
@@ -84,6 +86,7 @@ def add_wagon():
         flash("Заполните все поля!", 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
                                tracks=tracks,
                                move_list=move_list,
@@ -92,7 +95,8 @@ def add_wagon():
                                move_form_data=None,
                                request=request,
                                is_admin=is_admin,
-                               version=APP_VERSION)
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
 
     try:
         track_id = int(track_id_str)
@@ -100,6 +104,7 @@ def add_wagon():
         flash("Ошибка: Неверный ID пути.", 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
                                tracks=tracks,
                                move_list=move_list,
@@ -108,7 +113,8 @@ def add_wagon():
                                move_form_data=None,
                                request=request,
                                is_admin=is_admin,
-                               version=APP_VERSION)
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
 
     conn = get_conn()
     c = conn.cursor()
@@ -127,6 +133,7 @@ def add_wagon():
         flash("Ошибка: Если вы указываете дату, нужно указать и время, и наоборот.", 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
                                tracks=tracks,
                                move_list=move_list,
@@ -135,7 +142,8 @@ def add_wagon():
                                move_form_data=None,
                                request=request,
                                is_admin=is_admin,
-                               version=APP_VERSION)
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
 
     manual_start = None
     if start_date and start_time:
@@ -178,6 +186,7 @@ def add_wagon():
             flash(f"⚠️ Вагон '{number}' уже на путях!", 'error')
             tracks, move_list = get_dashboard_data()
             is_admin = (request.user_role == 'admin')
+            refresh_interval = int(get_setting('refresh_interval', '5'))
             return render_template('index.html',
                                    tracks=tracks,
                                    move_list=move_list,
@@ -186,7 +195,8 @@ def add_wagon():
                                    move_form_data=None,
                                    request=request,
                                    is_admin=is_admin,
-                                   version=APP_VERSION)
+                                   version=APP_VERSION,
+                                   refresh_interval=refresh_interval)
 
     compact_track(track_id)
     pos = find_slot_on_track(track_id, 10)[1]
@@ -209,6 +219,7 @@ def add_wagon():
         flash(f"⚠️ Вагон '{number}' уже существует.", 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
                                tracks=tracks,
                                move_list=move_list,
@@ -217,7 +228,8 @@ def add_wagon():
                                move_form_data=None,
                                request=request,
                                is_admin=is_admin,
-                               version=APP_VERSION)
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
     return redirect(url_for('main.index'))
 
 
@@ -247,6 +259,7 @@ def move_action():
         flash("Выберите вагон и путь назначения!", 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
                                tracks=tracks,
                                move_list=move_list,
@@ -255,7 +268,8 @@ def move_action():
                                move_form_data=move_form_data,
                                request=request,
                                is_admin=is_admin,
-                               version=APP_VERSION)
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
 
     try:
         new_track_id = int(new_track_id_str)
@@ -263,6 +277,7 @@ def move_action():
         flash("Ошибка: Неверный ID пути.", 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
                                tracks=tracks,
                                move_list=move_list,
@@ -271,7 +286,8 @@ def move_action():
                                move_form_data=move_form_data,
                                request=request,
                                is_admin=is_admin,
-                               version=APP_VERSION)
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
 
     try:
         l_days = int(local_days) if local_days else 0
@@ -284,6 +300,7 @@ def move_action():
         flash("Ошибка: Если вы указываете дату, нужно указать и время, и наоборот.", 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
                                tracks=tracks,
                                move_list=move_list,
@@ -292,7 +309,8 @@ def move_action():
                                move_form_data=move_form_data,
                                request=request,
                                is_admin=is_admin,
-                               version=APP_VERSION)
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
 
     manual_start = None
     if start_date and start_time:
@@ -306,6 +324,7 @@ def move_action():
         flash(msg, 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
                                tracks=tracks,
                                move_list=move_list,
@@ -314,7 +333,8 @@ def move_action():
                                move_form_data=move_form_data,
                                request=request,
                                is_admin=is_admin,
-                               version=APP_VERSION)
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
 
 
 @main_bp.route('/depart/<int:wagon_id>', methods=['POST'])
