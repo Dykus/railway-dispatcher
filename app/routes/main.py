@@ -20,6 +20,27 @@ from app.models import (
 main_bp = Blueprint('main', __name__)
 
 
+# ==================== ОПРЕДЕЛЕНИЕ ЛОКАЛЬНОГО IP (БЕЗ ВНЕШНЕГО СОЕДИНЕНИЯ) ====================
+def get_local_ip():
+    """Возвращает локальный IP-адрес в сети (без доступа в интернет)."""
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        if ip.startswith('127.'):
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.settimeout(0.1)
+                try:
+                    s.connect(('1.1.1.1', 1))
+                    ip = s.getsockname()[0]
+                except Exception:
+                    pass
+            if ip.startswith('127.'):
+                return '127.0.0.1'
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+
 @main_bp.route('/')
 def index():
     tracks, move_list = get_dashboard_data()
@@ -39,13 +60,7 @@ def index():
 
 @main_bp.route('/help')
 def help_page():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        server_ip = s.getsockname()[0]
-        s.close()
-    except:
-        server_ip = "IP_вашего_сервера"
+    server_ip = get_local_ip()
     return render_template('help.html', server_ip=server_ip, version=APP_VERSION)
 
 

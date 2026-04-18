@@ -9,6 +9,7 @@ import sys
 import threading
 import webbrowser
 import logging
+import socket
 from logging.handlers import RotatingFileHandler
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -27,6 +28,31 @@ try:
 except ImportError:
     HAS_TRAY = False
     print("Для работы иконки в трее установите: pip install pystray pillow")
+
+
+# ==================== ОПРЕДЕЛЕНИЕ ЛОКАЛЬНОГО IP (БЕЗ ВНЕШНЕГО СОЕДИНЕНИЯ) ====================
+def get_local_ip():
+    """Возвращает локальный IP-адрес в сети (без доступа в интернет)."""
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        # Если получился localhost, пробуем альтернативный метод
+        if ip.startswith('127.'):
+            # Попробуем получить IP через подключение к локальному серверу (не требует интернета)
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.settimeout(0.1)
+                # Не отправляем данные, просто пытаемся связаться с несуществующим адресом,
+                # чтобы получить имя интерфейса. Это не требует внешнего соединения.
+                try:
+                    s.connect(('1.1.1.1', 1))
+                    ip = s.getsockname()[0]
+                except Exception:
+                    pass
+            if ip.startswith('127.'):
+                return '127.0.0.1'
+        return ip
+    except Exception:
+        return '127.0.0.1'
 
 
 def create_tray_icon(port):
@@ -81,6 +107,7 @@ def create_tray_icon(port):
 
 
 def setup_logging():
+    """Настраивает логирование с ротацией (параметры из БД)."""
     log_file = os.path.join(BASE_DIR, 'railway_dispatcher.log')
     max_bytes = int(get_setting('log_max_mb', '5')) * 1024 * 1024
     backup_count = int(get_setting('log_backup_count', '5'))
@@ -114,25 +141,22 @@ def print_startup_info(port):
     logging.info("=" * 50)
     logging.info(f"🚂 ЖД Диспетчерская запущена (версия {APP_VERSION})")
     logging.info("=" * 50)
-    logging.info(f"📁 База данных: {os.path.join(BASE_DIR, 'rail_yard.db')}")
+    logging.info(f"📁 База данных: {os.path.join(BASE_DIR, 'rail_yard_v4.db')}")
     logging.info(f"🌐 Локальный адрес: http://127.0.0.1:{port}")
-    try:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
+    local_ip = get_local_ip()
+    if local_ip != '127.0.0.1':
         logging.info(f"🌐 Сетевой адрес: http://{local_ip}:{port}")
-        global SERVER_IP
-        SERVER_IP = local_ip
-    except:
-        logging.info("🌐 Сетевой адрес: не удалось определить")
+    else:
+        logging.info("🌐 Сетевой адрес: не удалось определить (используйте локальный)")
+    global SERVER_IP
+    SERVER_IP = local_ip
     logging.info("=" * 50)
     logging.info("Для остановки нажмите Ctrl+C или используйте иконку в трее")
     logging.info("=" * 50)
 
 
 if __name__ == '__main__':
+    # Проверка единственного экземпляра
     try:
         import win32event, win32api, winerror
         mutex = win32event.CreateMutex(None, False, "RailwayDispatcher_App_Mutex")
@@ -142,9 +166,13 @@ if __name__ == '__main__':
     except ImportError:
         logging.warning("pywin32 не установлен, проверка единственного экземпляра отключена.")
 
-    setup_logging()
+    # Создаём приложение (инициализирует БД)
     app = create_app()
 
+    # Настраиваем логирование (теперь БД уже существует)
+    setup_logging()
+
+    # Читаем порт из настроек
     try:
         CURRENT_PORT = int(get_setting('port', '5000'))
     except:

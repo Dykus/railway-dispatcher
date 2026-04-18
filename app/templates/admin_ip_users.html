@@ -1,56 +1,9 @@
-<!-- НАЧАЛО ФАЙЛА app/templates/admin_ip_users.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Привязка IP к пользователям</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        /* Дополнительные стили для этой страницы */
-        .ip-form {
-            background: #ecf0f1;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-        }
-        .ip-form h3 {
-            margin-top: 0;
-        }
-        .ip-form input, .ip-form select {
-            padding: 8px;
-            margin: 5px 5px 5px 0;
-            border: 1px solid #bdc3c7;
-            border-radius: 4px;
-        }
-        .ip-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            margin-top: 20px;
-        }
-        .ip-table th, .ip-table td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: left;
-            vertical-align: top;
-        }
-        .ip-table th {
-            background: #34495e;
-            color: white;
-            font-weight: bold;
-        }
-        .ip-table tr:nth-child(even) {
-            background: #f9f9f9;
-        }
-        .delete-btn {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-    </style>
 </head>
 <body>
 <div class="container">
@@ -63,19 +16,38 @@
         <a href="/admin/settings" class="btn btn-primary">⚙️ Настройки</a>
     </div>
 
-    <form method="POST" class="ip-form">
-        <h3>Добавить / изменить привязку</h3>
-        <input type="text" name="ip_address" placeholder="IP-адрес (например, 192.168.1.100)" required>
-        <input type="text" name="username" placeholder="Имя пользователя" required>
-        <input type="text" name="note" placeholder="Примечание (необязательно)">
-        <label><input type="checkbox" name="access_allowed" value="1"> Доступ разрешён</label>
-        <select name="role">
-            <option value="viewer">Наблюдатель (только просмотр)</option>
-            <option value="dispatcher">Диспетчер</option>
-            <option value="supervisor">Супервизор (может редактировать данные)</option>
-            <option value="admin">Администратор</option>
-        </select>
-        <button type="submit" class="btn btn-success">Сохранить</button>
+    <!-- ФОРМА С INLINE-СТИЛЯМИ (гарантированно горизонтальная) -->
+    <form method="POST" style="background: #ecf0f1; padding: 15px; border-radius: 8px; margin-bottom: 30px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 15px;">
+            <div>
+                <label style="font-size: 11px; color: #555; display: block;">IP-адрес</label>
+                <input type="text" name="ip_address" placeholder="192.168.1.100" required style="padding: 6px 8px; width: 140px;">
+            </div>
+            <div>
+                <label style="font-size: 11px; color: #555; display: block;">Имя пользователя</label>
+                <input type="text" name="username" placeholder="Имя" required style="padding: 6px 8px; width: 130px;">
+            </div>
+            <div>
+                <label style="font-size: 11px; color: #555; display: block;">Примечание</label>
+                <input type="text" name="note" placeholder="(необязательно)" style="padding: 6px 8px; width: 140px;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px; padding-bottom: 2px;">
+                <input type="checkbox" name="access_allowed" value="1" id="access_allowed">
+                <label for="access_allowed">Доступ разрешён</label>
+            </div>
+            <div>
+                <label style="font-size: 11px; color: #555; display: block;">Роль</label>
+                <select name="role" style="padding: 6px 8px;">
+                    <option value="viewer">Наблюдатель</option>
+                    <option value="dispatcher">Диспетчер</option>
+                    <option value="supervisor">Супервизор</option>
+                    <option value="admin">Администратор</option>
+                </select>
+            </div>
+            <div>
+                <button type="submit" style="background: #27ae60; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Сохранить</button>
+            </div>
+        </div>
     </form>
 
     <h3>Текущие привязки</h3>
@@ -109,6 +81,57 @@
         </tbody>
     </table>
 </div>
+
+<style>
+    /* Стили для таблицы (если не подхватились из основного CSS) */
+    .ip-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        margin-top: 20px;
+    }
+    .ip-table th, .ip-table td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+        vertical-align: top;
+    }
+    .ip-table th {
+        background: #34495e;
+        color: white;
+        font-weight: bold;
+    }
+    .ip-table tr:nth-child(even) {
+        background: #f9f9f9;
+    }
+    .delete-btn {
+        background: #e74c3c;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .nav-bar {
+        margin-bottom: 20px;
+    }
+    .btn-primary {
+        background: #3498db;
+        color: white;
+        padding: 8px 15px;
+        text-decoration: none;
+        border-radius: 5px;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+</style>
 </body>
 </html>
-<!-- КОНЕЦ ФАЙЛА app/templates/admin_ip_users.html -->
