@@ -182,14 +182,6 @@
                 <label>Интервал обновления (сек):</label>
                 <input type="number" name="refresh_interval" value="{{ settings.get('refresh_interval', '5') }}" min="2" max="30">
             </div>
-            <div class="form-row">
-                <label>Тема оформления:</label>
-                <select name="theme">
-                    <option value="light" {% if settings.get('theme', 'light') == 'light' %}selected{% endif %}>Светлая</option>
-                    <option value="dark" disabled>Тёмная (в разработке)</option>
-                </select>
-            </div>
-        </div>
 
         <!-- ===== ПУТИ И ВАГОНЫ ===== -->
         <div class="settings-section">

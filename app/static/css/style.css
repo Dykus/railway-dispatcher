@@ -8,6 +8,7 @@ body {
     background: #f0f2f5;
     margin: 0;
     padding: 20px;
+    transition: background 0.2s, color 0.2s;
 }
 
 .container {
@@ -17,6 +18,7 @@ body {
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: background 0.2s;
 }
 
 h1 {
@@ -27,7 +29,7 @@ h1 {
     padding-bottom: 10px;
 }
 
-/* ===== НАВИГАЦИОННЫЕ КНОПКИ (ОРИГИНАЛЬНЫЕ ЦВЕТА) ===== */
+/* ===== НАВИГАЦИОННЫЕ КНОПКИ ===== */
 .header-actions {
     display: flex;
     justify-content: space-between;
@@ -41,9 +43,9 @@ h1 {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+    align-items: center;
 }
 
-/* Базовый класс кнопки */
 .btn {
     color: white;
     padding: 8px 15px;
@@ -55,29 +57,27 @@ h1 {
     align-items: center;
     gap: 5px;
     cursor: pointer;
-    background: #3498db; /* базовый синий */
+    background: #3498db;
+    transition: background 0.2s;
 }
 
-/* Цветовые варианты кнопок */
-.btn-primary   { background: #3498db; } /* синий */
-.btn-success   { background: #27ae60; } /* зелёный */
-.btn-danger    { background: #e74c3c; } /* красный */
-.btn-excel     { background: #217346; } /* тёмно-зелёный (Excel) */
-.btn-warning   { background: #f39c12; } /* оранжевый */
-.btn-changelog { background: #2c3e50; } /* тёмно-синий */
-.btn-backup    { background: #27ae60; } /* зелёный (бэкапы) */
+.btn-primary   { background: #3498db; }
+.btn-success   { background: #27ae60; }
+.btn-danger    { background: #e74c3c; }
+.btn-excel     { background: #217346; }
+.btn-warning   { background: #f39c12; }
+.btn-changelog { background: #2c3e50; }
+.btn-backup    { background: #27ae60; }
 .btn-history   { background: #2980b9; }
 .btn-archive   { background: #7f8c8d; }
 .btn-help      { background: #16a085; }
 .btn-add       { background: #27ae60; }
 .btn-move      { background: #f39c12; }
 
-/* Кнопка в панели перемещения */
-.btn-move {
-    background: #f39c12;
-}
+.btn-primary:hover { background: #2980b9; }
+.btn-success:hover { background: #2ecc71; }
+.btn-danger:hover  { background: #c0392b; }
 
-/* Стили для навигации в истории и архиве */
 .nav-links {
     display: flex;
     gap: 10px;
@@ -100,7 +100,7 @@ h1 {
 .nav-link-excel   { background: #217346; }
 .nav-link-help    { background: #16a085; }
 
-/* ===== ФОРМЫ И ЭЛЕМЕНТЫ УПРАВЛЕНИЯ ===== */
+/* ===== ФОРМЫ ===== */
 .controls {
     display: flex;
     gap: 20px;
@@ -245,7 +245,7 @@ input, select, textarea {
     overflow-x: auto;
 }
 
-/* ===== ВАГОНЫ (ОРИГИНАЛЬНЫЕ ЦВЕТА) ===== */
+/* ===== ВАГОНЫ ===== */
 .wagon {
     position: absolute;
     top: 20px;
@@ -274,7 +274,6 @@ input, select, textarea {
     outline: 3px solid #f1c40f;
 }
 
-/* Градиенты из оригинального шаблона */
 .wagon-normal {
     background: linear-gradient(135deg, #3498db, #2980b9);
 }
@@ -612,10 +611,6 @@ tr:nth-child(even) {
     background: #f9f9f9;
 }
 
-.btn-danger {
-    background: #e74c3c;
-}
-
 .delete-btn {
     background: #e74c3c;
     color: white;
@@ -625,13 +620,356 @@ tr:nth-child(even) {
     cursor: pointer;
 }
 
-/* ===== АДАПТИВНОСТЬ ===== */
-@media (max-width: 768px) {
-    .control-box:first-child {
-        border-right: none;
-        padding-right: 0;
-    }
-    .control-box:last-child {
-        padding-left: 0;
-    }
+/* ===== ТЁМНАЯ ТЕМА (CSS-ПЕРЕМЕННЫЕ) ===== */
+:root {
+    --bg-body: #f0f2f5;
+    --bg-container: white;
+    --text-color: #2c3e50;
+    --header-bg: #34495e;
+    --track-bg: #ecf0f1;
+    --border-color: #ddd;
+    --btn-primary-bg: #3498db;
+    --btn-primary-hover: #2980b9;
+    --btn-success-bg: #27ae60;
+    --btn-success-hover: #2ecc71;
+    --btn-danger-bg: #e74c3c;
+    --btn-danger-hover: #c0392b;
+    --tooltip-bg: #2c3e50;
+    --tooltip-text: white;
+    --table-header-bg: #34495e;
+    --table-header-text: white;
+    --summary-bg: #ecf0f1;
+    --summary-text: #2c3e50;
+}
+
+body.dark {
+    --bg-body: #1a1a2e;
+    --bg-container: #16213e;
+    --text-color: #e0e0e0;
+    --header-bg: #0f3460;
+    --track-bg: #1a1a2e;
+    --border-color: #2c3e50;
+    --btn-primary-bg: #2980b9;
+    --btn-primary-hover: #1f618d;
+    --btn-success-bg: #1e8449;
+    --btn-success-hover: #27ae60;
+    --btn-danger-bg: #c0392b;
+    --btn-danger-hover: #e74c3c;
+    --tooltip-bg: #0f3460;
+    --tooltip-text: #ecf0f1;
+    --table-header-bg: #0f3460;
+    --table-header-text: #ecf0f1;
+    --summary-bg: #0f3460;
+    --summary-text: #ecf0f1;
+}
+
+/* Применяем переменные */
+body {
+    background: var(--bg-body);
+    color: var(--text-color);
+}
+.container {
+    background: var(--bg-container);
+}
+.track-header {
+    background: var(--header-bg);
+}
+.track-body {
+    background: var(--track-bg);
+    border-bottom-color: var(--border-color);
+}
+.btn-primary {
+    background: var(--btn-primary-bg);
+}
+.btn-primary:hover {
+    background: var(--btn-primary-hover);
+}
+.btn-success {
+    background: var(--btn-success-bg);
+}
+.btn-success:hover {
+    background: var(--btn-success-hover);
+}
+.btn-danger {
+    background: var(--btn-danger-bg);
+}
+.btn-danger:hover {
+    background: var(--btn-danger-hover);
+}
+#global-tooltip {
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
+}
+.history-table th {
+    background: var(--table-header-bg);
+    color: var(--table-header-text);
+}
+summary {
+    background: var(--summary-bg);
+    color: var(--summary-text);
+}
+details, .track-wrapper, .controls {
+    border-color: var(--border-color);
+}
+.legend {
+    background: var(--summary-bg);
+}
+
+/* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ (исправление белых элементов) ===== */
+body.dark .controls {
+    background: #0f3460;
+}
+
+body.dark .control-box:first-child {
+    border-right-color: #2c3e50;
+}
+
+body.dark input, 
+body.dark select, 
+body.dark textarea {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border-color: #2c3e50;
+}
+
+body.dark input:focus, 
+body.dark select:focus, 
+body.dark textarea:focus {
+    outline-color: #3498db;
+}
+
+body.dark .time-group input,
+body.dark .date-time-group input {
+    background: #1a1a2e;
+    color: #e0e0e0;
+}
+
+body.dark .date-buttons button {
+    background: #0f3460;
+    color: white;
+    border-color: #2c3e50;
+}
+
+body.dark .date-buttons button:hover {
+    background: #1f618d;
+}
+
+body.dark .legend {
+    background: #0f3460;
+    color: #e0e0e0;
+}
+
+body.dark .legend-color {
+    border: 1px solid #2c3e50;
+}
+
+body.dark .track-wrapper {
+    background: #16213e;
+    border-color: #2c3e50;
+}
+
+body.dark .alert-success {
+    background: #1e8449;
+    color: #d4edda;
+    border-left-color: #27ae60;
+}
+
+body.dark .alert-error {
+    background: #c0392b;
+    color: #f8d7da;
+    border-left-color: #e74c3c;
+}
+
+body.dark .refresh-btn {
+    background: #0f3460;
+    color: white;
+    border: none;
+}
+
+body.dark .refresh-btn:hover {
+    background: #1f618d;
+}
+
+body.dark #editModal {
+    background: rgba(0,0,0,0.7);
+}
+
+body.dark #editModal > div {
+    background: #16213e;
+    color: #e0e0e0;
+}
+
+body.dark #editModal input,
+body.dark #editModal textarea,
+body.dark #editModal select {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border-color: #2c3e50;
+}
+
+body.dark .tooltip-row {
+    border-bottom-color: #2c3e50;
+}
+
+body.dark .timer-block {
+    border-top-color: #2c3e50;
+}
+
+body.dark .close-tooltip {
+    color: #bdc3c7;
+}
+
+body.dark .close-tooltip:hover {
+    color: white;
+}
+
+body.dark .btn-remove-large {
+    background: #c0392b;
+}
+
+body.dark .btn-remove-large:hover {
+    background: #e74c3c;
+}
+
+/* Стили для страницы настроек */
+body.dark .settings-section {
+    background: #0f3460;
+    border: 1px solid #2c3e50;
+}
+
+body.dark .form-row input,
+body.dark .form-row select {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border-color: #2c3e50;
+}
+
+body.dark .btn-save {
+    background: #1e8449;
+}
+
+body.dark .btn-save:hover {
+    background: #27ae60;
+}
+
+/* Стили для страницы привязки IP */
+body.dark .ip-form {
+    background: #0f3460;
+}
+
+body.dark .ip-form input,
+body.dark .ip-form select {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border-color: #2c3e50;
+}
+
+body.dark .ip-table {
+    background: #16213e;
+}
+
+body.dark .ip-table th {
+    background: #0f3460;
+    color: #ecf0f1;
+}
+
+body.dark .ip-table td {
+    border-color: #2c3e50;
+    color: #e0e0e0;
+}
+
+body.dark .ip-table tr:nth-child(even) {
+    background: #1a1a2e;
+}
+
+body.dark .delete-btn {
+    background: #c0392b;
+}
+
+body.dark .delete-btn:hover {
+    background: #e74c3c;
+}
+
+/* Стили для страницы истории и архива */
+body.dark .search-box input {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border-color: #2c3e50;
+}
+
+body.dark .search-box button {
+    background: #0f3460;
+}
+
+body.dark .search-box button:hover {
+    background: #1f618d;
+}
+
+body.dark .history-table td {
+    border-color: #2c3e50;
+    color: #e0e0e0;
+}
+
+body.dark .history-table tr:nth-child(even) {
+    background: #1a1a2e;
+}
+
+body.dark .history-table tr:hover {
+    background: #0f3460;
+}
+
+body.dark .edit-history-btn {
+    color: #3498db;
+}
+
+body.dark .edit-history-btn:hover {
+    color: #e67e22;
+}
+/* ===== ИСПРАВЛЕНИЕ ДЛЯ ПОЛЕЙ ГЛОБАЛЬНОГО И ЛОКАЛЬНОГО СРОКОВ В ТЁМНОЙ ТЕМЕ ===== */
+body.dark .time-group,
+body.dark .date-time-group,
+body.dark .time-group div,
+body.dark .date-time-group div {
+    background: transparent !important;
+}
+
+body.dark .time-group input,
+body.dark .date-time-group input {
+    background: #1a1a2e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
+}
+
+body.dark .time-group label,
+body.dark .date-time-group label {
+    color: #bdc3c7 !important;
+}
+
+body.dark .date-buttons button {
+    background: #0f3460 !important;
+    color: white !important;
+    border-color: #2c3e50 !important;
+}
+
+body.dark .date-buttons button:hover {
+    background: #1f618d !important;
+}
+
+body.dark .date-help {
+    color: #bdc3c7 !important;
+}
+
+/* Если сами блоки с подписями (Глобальный срок, Локальный срок) имеют светлый фон */
+body.dark .control-box h3,
+body.dark .controls h3 {
+    color: #e0e0e0 !important;
+}
+
+/* Фон блоков, в которых находятся эти поля (уже должно быть тёмным, но на всякий случай) */
+body.dark .controls {
+    background: #0f3460 !important;
+}
+
+body.dark .control-box {
+    background: transparent !important;
 }
