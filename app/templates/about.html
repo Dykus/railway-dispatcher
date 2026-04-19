@@ -28,10 +28,11 @@
         <li>Наглядное отображение дислокации вагонов в реальном времени.</li>
         <li>Контроль соблюдения сроков обработки вагонов (глобальных и локальных).</li>
         <li>Ведение полной истории перемещений и архива убывших вагонов.</li>
-        <li>Разграничение прав доступа для различных категорий персонала.</li>
+        <li>Разграничение прав доступа для различных категорий персонала (наблюдатель, диспетчер, супервизор, администратор).</li>
         <li>Автоматическое резервное копирование данных и аудит действий пользователей.</li>
         <li>Управление путями (добавление, редактирование, удаление, сортировка).</li>
         <li>Удалённое копирование бэкапов на сетевую папку (SMB).</li>
+        <li><strong>Новое в версии 4.1.0b:</strong> персональная тёмная тема, поиск по номеру вагона в истории/архиве, полностью переработанный тултип (стабилен после автообновлений).</li>
     </ul>
     <p>Система работает полностью автономно в локальной сети предприятия, <strong>не требует подключения к Интернету</strong>, поддерживает Windows 7 и новее.</p>
 
@@ -89,15 +90,15 @@
     </ul>
 
     <h3>4.2. Цветовая индикация состояния вагонов</h3>
-    <table>
-        <thead><tr><th>Цвет</th><th>Значение</th></tr></thead>
+    <table class="help-color-table" style="width:100%; border-collapse:collapse; margin:15px 0;">
+        <thead><tr><th style="width:30%;">Цвет</th><th style="width:70%;">Значение</th></tr></thead>
         <tbody>
-            <tr><td style="background: linear-gradient(135deg,#3498db,#2980b9); color:white;">Синий</td><td>Сроки в норме или не заданы</td></tr>
-            <tr><td style="background: linear-gradient(135deg,#8e44ad,#9b59b6); color:white; border:1px solid #f1c40f;">Фиолетовый с жёлтой рамкой</td><td>Вагон ранее находился на возвратном пути</td></tr>
-            <tr><td style="background: linear-gradient(135deg,#6c3483,#4a235a); color:white; border:1px solid #e74c3c;">Тёмно-фиолетовый</td><td>Был на возвратном пути, истёк глобальный срок</td></tr>
-            <tr><td style="background: linear-gradient(135deg,#922b21,#641e16); color:white; border:1px solid #e74c3c;">Тёмно-красный</td><td>Истёк глобальный срок (для обычного вагона)</td></tr>
-            <tr><td style="background: linear-gradient(135deg,#f39c12,#d35400); color:white;">Оранжевый</td><td>До истечения локального срока осталось менее 1 часа</td></tr>
-            <tr><td style="background: linear-gradient(135deg,#e74c3c,#c0392b); color:white;">Красный</td><td>Локальный срок истёк (просрочка)</td></tr>
+            <tr><td><span style="display:inline-block; width:20px; height:20px; background: linear-gradient(135deg,#3498db,#2980b9); border-radius:4px; margin-right:8px;"></span> Синий</td><td>Сроки в норме или не заданы</td></tr>
+            <tr><td><span style="display:inline-block; width:20px; height:20px; background: linear-gradient(135deg,#8e44ad,#9b59b6); border:1px solid #f1c40f; border-radius:4px; margin-right:8px;"></span> Фиолетовый с жёлтой рамкой</td><td>Вагон ранее находился на возвратном пути</td></tr>
+            <tr><td><span style="display:inline-block; width:20px; height:20px; background: linear-gradient(135deg,#6c3483,#4a235a); border:2px solid #e74c3c; border-radius:4px; margin-right:8px;"></span> Тёмно-фиолетовый</td><td>Был на возвратном пути, истёк глобальный срок</td></tr>
+            <tr><td><span style="display:inline-block; width:20px; height:20px; background: linear-gradient(135deg,#922b21,#641e16); border:2px solid #e74c3c; border-radius:4px; margin-right:8px;"></span> Тёмно-красный</td><td>Истёк глобальный срок (для обычного вагона)</td></tr>
+            <tr><td><span style="display:inline-block; width:20px; height:20px; background: linear-gradient(135deg,#f39c12,#d35400); border-radius:4px; margin-right:8px;"></span> Оранжевый</td><td>До истечения локального срока осталось менее 1 часа</td></tr>
+            <tr><td><span style="display:inline-block; width:20px; height:20px; background: linear-gradient(135deg,#e74c3c,#c0392b); border-radius:4px; margin-right:8px;"></span> Красный</td><td>Локальный срок истёк (просрочка)</td></tr>
         </tbody>
     </table>
 
@@ -176,6 +177,8 @@
         <li><strong>Иконка в системном трее</strong> – быстрый доступ к интерфейсу и настройкам, завершение работы.</li>
         <li><strong>Защита хронологии</strong> – дата начала локального срока не может быть раньше времени прибытия или последнего перемещения.</li>
         <li><strong>Работа без интернета</strong> – определение IP через локальные вызовы, без обращения к внешним ресурсам.</li>
+        <li><strong>Тёмная тема</strong> – переключение по кнопке 🌙/☀️, сохранение выбора в браузере, корректное отображение всех элементов.</li>
+        <li><strong>Поиск в истории и архиве</strong> – быстрая фильтрация вагонов по номеру.</li>
     </ul>
 
     <h2>12. Технические требования</h2>

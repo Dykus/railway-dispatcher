@@ -13,6 +13,48 @@
         })();
     </script>
     <style>
+        /* Дополнительные стили только для этой страницы */
+        .help-color-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            table-layout: fixed;
+        }
+        .help-color-table th,
+        .help-color-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        .help-color-table th {
+            background: #ecf0f1;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        .help-color-table td {
+            background: white;
+            color: #2c3e50;
+        }
+        .help-color-table td .color-box {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        /* Тёмная тема для таблицы */
+        html.dark .help-color-table th {
+            background: #0f3460;
+            color: #ecf0f1;
+            border-color: #2c3e50;
+        }
+        html.dark .help-color-table td {
+            background: #16213e;
+            color: #e0e0e0;
+            border-color: #2c3e50;
+        }
         .address {
             background: #e8f4fd;
             padding: 12px;
@@ -28,26 +70,14 @@
             border-left: 4px solid #f39c12;
             margin: 15px 0;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
+        html.dark .address {
+            background: #0f3460;
+            color: #e0e0e0;
         }
-        th, td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background: #ecf0f1;
-        }
-        .color-box {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
-            vertical-align: middle;
-            margin-right: 8px;
+        html.dark .note {
+            background: #0f3460;
+            color: #e0e0e0;
+            border-left-color: #f39c12;
         }
     </style>
 </head>
@@ -95,14 +125,39 @@
     </ul>
     
     <h2>5. Цвета вагонов (что означают)</h2>
-    <table>
-        <tr><th>Цвет</th><th>Значение</th></tr>
-        <tr><td><span class="color-box" style="background: linear-gradient(135deg,#3498db,#2980b9);"></span> Синий</span><th>Обычный вагон (срок в норме или не задан)</th></tr>
-        <tr><td class="color-box" style="background: linear-gradient(135deg,#8e44ad,#9b59b6); border:1px solid #f1c40f;"></span> Фиолетовый (с жёлтой рамкой)</span><th>Вагон уже побывал на возвратном пути («Пост №2» или «Ст. Черкасов Камень»)</th></tr>
-        <tr><td class="color-box" style="background: linear-gradient(135deg,#6c3483,#4a235a); border:2px solid #e74c3c;"></span> Тёмно-фиолетовый</span><th>Был на возвратном пути И истёк глобальный срок</th></tr>
-        <tr><td class="color-box" style="background: linear-gradient(135deg,#922b21,#641e16); border:2px solid #e74c3c;"></span> Тёмно-красный</span><th>Обычный вагон с истёкшим глобальным сроком</th></tr>
-        <tr><td class="color-box" style="background: linear-gradient(135deg,#f39c12,#d35400);"></span> Оранжевый</span><th>Локальный срок истекает менее чем через час</th></tr>
-        <tr><td class="color-box" style="background: linear-gradient(135deg,#e74c3c,#c0392b);"></span> Красный</span><th>Локальный срок уже истёк (просрочка)</th></tr>
+    <table class="help-color-table">
+        <thead>
+            <tr>
+                <th style="width: 30%;">Цвет</th>
+                <th style="width: 70%;">Значение</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="color-box" style="background: linear-gradient(135deg,#3498db,#2980b9);"></span> Синий</span>
+                <td>Обычный вагон (срок в норме или не задан)</span>
+            </tr>
+            <tr>
+                <td><span class="color-box" style="background: linear-gradient(135deg,#8e44ad,#9b59b6); border:1px solid #f1c40f;"></span> Фиолетовый (с жёлтой рамкой)</span>
+                <td>Вагон уже побывал на возвратном пути («Пост №2» или «Ст. Черкасов Камень»)</span>
+            </tr>
+            <tr>
+                <td><span class="color-box" style="background: linear-gradient(135deg,#6c3483,#4a235a); border:2px solid #e74c3c;"></span> Тёмно-фиолетовый</span>
+                <td>Был на возвратном пути И истёк глобальный срок</span>
+            </tr>
+            <tr>
+                <td><span class="color-box" style="background: linear-gradient(135deg,#922b21,#641e16); border:2px solid #e74c3c;"></span> Тёмно-красный</span>
+                <td>Обычный вагон с истёкшим глобальным сроком</span>
+            </tr>
+            <tr>
+                <td><span class="color-box" style="background: linear-gradient(135deg,#f39c12,#d35400);"></span> Оранжевый</span>
+                <td>Локальный срок истекает менее чем через час</span>
+            </tr>
+            <tr>
+                <td><span class="color-box" style="background: linear-gradient(135deg,#e74c3c,#c0392b);"></span> Красный</span>
+                <td>Локальный срок уже истёк (просрочка)</span>
+            </tr>
+        </tbody>
     </table>
     <p><strong>Локальный срок</strong> – время на текущем пути. <strong>Глобальный срок</strong> – общее время на станции.</p>
     
