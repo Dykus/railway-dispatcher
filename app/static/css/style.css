@@ -715,7 +715,7 @@ details, .track-wrapper, .controls {
     background: var(--summary-bg);
 }
 
-/* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ (исправление белых элементов) ===== */
+/* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ ===== */
 body.dark .controls {
     background: #0f3460;
 }
@@ -925,51 +925,59 @@ body.dark .edit-history-btn {
 body.dark .edit-history-btn:hover {
     color: #e67e22;
 }
-/* ===== ИСПРАВЛЕНИЕ ДЛЯ ПОЛЕЙ ГЛОБАЛЬНОГО И ЛОКАЛЬНОГО СРОКОВ В ТЁМНОЙ ТЕМЕ ===== */
-body.dark .time-group,
-body.dark .date-time-group,
-body.dark .time-group div,
-body.dark .date-time-group div {
-    background: transparent !important;
+
+/* ===== ОКОНЧАТЕЛЬНОЕ ПЕРЕКРАШИВАНИЕ ПОЛЕЙ ГЛОБАЛЬНОГО И ЛОКАЛЬНОГО СРОКОВ ===== */
+body.dark .control-box .time-group,
+body.dark .control-box .date-time-group,
+body.dark .control-box .time-group *,
+body.dark .control-box .date-time-group * {
+    background-color: transparent !important;
 }
 
-body.dark .time-group input,
-body.dark .date-time-group input {
+body.dark .control-box .time-group input,
+body.dark .control-box .date-time-group input,
+body.dark .control-box .time-group select,
+body.dark .control-box .date-time-group select {
     background: #1a1a2e !important;
     color: #e0e0e0 !important;
     border-color: #2c3e50 !important;
 }
 
-body.dark .time-group label,
-body.dark .date-time-group label {
+body.dark .control-box .time-group label,
+body.dark .control-box .date-time-group label {
     color: #bdc3c7 !important;
 }
 
-body.dark .date-buttons button {
-    background: #0f3460 !important;
-    color: white !important;
+body.dark .control-box .time-group,
+body.dark .control-box .date-time-group {
+    background: transparent !important;
+}
+
+/* Дополнительно – перекрашиваем любые поля внутри control-box */
+body.dark .control-box input,
+body.dark .control-box select,
+body.dark .control-box textarea {
+    background: #1a1a2e !important;
+    color: #e0e0e0 !important;
     border-color: #2c3e50 !important;
 }
-
-body.dark .date-buttons button:hover {
-    background: #1f618d !important;
-}
-
-body.dark .date-help {
-    color: #bdc3c7 !important;
-}
-
-/* Если сами блоки с подписями (Глобальный срок, Локальный срок) имеют светлый фон */
-body.dark .control-box h3,
-body.dark .controls h3 {
+/* ===== ПЕРЕКРАШИВАЕМ БЛОКИ ГЛОБАЛЬНОГО И ЛОКАЛЬНОГО СРОКОВ В ТЁМНОЙ ТЕМЕ ===== */
+body.dark .control-box > div[style*="background:#e8f6f3"],
+body.dark .control-box > div[style*="background:#fef9e7"],
+body.dark .control-box > div[style*="background:#e8f6f3"] *,
+body.dark .control-box > div[style*="background:#fef9e7"] * {
+    background-color: #0f3460 !important;
     color: #e0e0e0 !important;
 }
 
-/* Фон блоков, в которых находятся эти поля (уже должно быть тёмным, но на всякий случай) */
-body.dark .controls {
+/* Если блоки не имеют inline-стилей, а имеют классы */
+body.dark .control-box > div:has(> label[style*="font-weight:bold"]),
+body.dark .control-box > div:has(> .time-group) {
     background: #0f3460 !important;
 }
 
-body.dark .control-box {
-    background: transparent !important;
+/* Универсальное перекрашивание любых div с этими оттенками */
+body.dark div[style*="background:#e8f6f3"],
+body.dark div[style*="background:#fef9e7"] {
+    background: #0f3460 !important;
 }
