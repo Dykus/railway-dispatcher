@@ -4,18 +4,50 @@
     <meta charset="UTF-8">
     <title>Список изменений</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    <style>
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 8px 15px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
 </head>
 <body>
 <div class="container">
-    <div class="nav-bar">
-        <a href="/" class="btn btn-primary">🏠 На главную</a>
-        <a href="/admin/logs" class="btn btn-primary">📜 Журнал действий</a>
-        <a href="/admin/ip_users" class="btn btn-primary">🔗 Привязка IP</a>
-        <a href="/admin/backups" class="btn btn-primary">📦 Резервные копии</a>
-        <a href="/admin/settings" class="btn btn-primary">⚙️ Настройки</a>
+    <div class="nav-buttons">
+        <a href="/" class="btn">🏠 На главную</a>
+        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
+        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
+        <a href="/admin/backups" class="btn">📦 Резервные копии</a>
+        <a href="/admin/settings" class="btn">⚙️ Настройки</a>
     </div>
     <h1>📋 Список изменений</h1>
     <pre>{{ content }}</pre>
 </div>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

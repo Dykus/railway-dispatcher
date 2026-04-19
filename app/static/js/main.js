@@ -602,13 +602,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
 // ===== ПЕРЕКЛЮЧЕНИЕ ТЁМНОЙ ТЕМЫ (персональная) =====
 function applyTheme(theme) {
     if (theme === 'dark') {
-        document.body.classList.add('dark');
+        document.documentElement.classList.add('dark');
         if (themeToggleBtn) themeToggleBtn.textContent = '☀️';
     } else {
-        document.body.classList.remove('dark');
+        document.documentElement.classList.remove('dark');
         if (themeToggleBtn) themeToggleBtn.textContent = '🌙';
     }
     localStorage.setItem('theme', theme);
@@ -621,15 +622,14 @@ themeToggleBtn.style.cssText = 'background: none; border: none; font-size: 20px;
 themeToggleBtn.title = 'Сменить тему';
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Ищем место для кнопки (рядом с кнопкой помощи или в .nav-buttons)
-    const navButtons = document.querySelector('.nav-buttons');
-    if (navButtons) {
-        navButtons.appendChild(themeToggleBtn);
+    // Ищем контейнер для кнопки – расширяем список возможных контейнеров
+    let targetContainer = document.querySelector('.nav-buttons');
+    if (!targetContainer) targetContainer = document.querySelector('.header-actions');
+    if (!targetContainer) targetContainer = document.querySelector('.nav-bar');
+    if (targetContainer) {
+        targetContainer.appendChild(themeToggleBtn);
     } else {
-        const headerActions = document.querySelector('.header-actions');
-        if (headerActions) {
-            headerActions.appendChild(themeToggleBtn);
-        }
+        console.warn('Не найден контейнер для кнопки темы');
     }
     
     // Загружаем сохранённую тему
@@ -642,7 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Обработчик клика
     themeToggleBtn.addEventListener('click', () => {
-        const isDark = document.body.classList.contains('dark');
+        const isDark = document.documentElement.classList.contains('dark');
         applyTheme(isDark ? 'light' : 'dark');
     });
 });

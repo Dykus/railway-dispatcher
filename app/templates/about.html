@@ -4,26 +4,23 @@
     <meta charset="UTF-8">
     <title>О программе «ЖД Диспетчерская»</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        h2 { color: #2980b9; margin-top: 25px; }
-        h3 { color: #16a085; margin-top: 20px; }
-        ul, ol { padding-left: 20px; }
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
-        th { background: #ecf0f1; }
-        .note { background: #fef9e7; padding: 10px; border-left: 4px solid #f39c12; margin: 15px 0; }
-        .version { font-size: 14px; color: #7f8c8d; text-align: right; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px; }
-        .nav-link { display: inline-block; padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; margin-bottom: 20px; }
-    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
 </head>
 <body>
 <div class="container">
-    <a href="/" class="nav-link">🏠 На главную</a>
+    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+        <a href="/" class="nav-link">🏠 На главную</a>
+        <div class="nav-buttons"></div>
+    </div>
     <h1>🚂 Информационная система «ЖД Диспетчерская»</h1>
-    <p><strong>Версия 4.0.0-beta</strong> – полностью автономное решение для диспетчерского учёта движения железнодорожных вагонов.</p>
+    <p><strong>Версия 4.1.0b</strong> – полностью автономное решение для диспетчерского учёта движения железнодорожных вагонов.</p>
 
     <h2>1. Общие сведения</h2>
     <p>Система предназначена для автоматизации учёта и контроля движения вагонов на промышленных путях предприятия. Обеспечивает:</p>
@@ -189,13 +186,11 @@
         <li>Сервер: один компьютер в локальной сети (достаточно 512 МБ ОЗУ).</li>
     </ul>
 
-    <h2>13. Контакты и поддержка</h2>
-    <p>Программа разработана для АО «Знамя». При возникновении вопросов или неполадок обращайтесь к системному администратору.</p>
-
     <div class="version">
         © АО «Знамя», 2026<br>
-        Версия 4.0.0-beta (сборка от 18.04.2026)
+        Версия 4.1.0b (сборка от 19.04.2026)
     </div>
 </div>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

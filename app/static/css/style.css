@@ -642,7 +642,7 @@ tr:nth-child(even) {
     --summary-text: #2c3e50;
 }
 
-body.dark {
+html.dark {
     --bg-body: #1a1a2e;
     --bg-container: #16213e;
     --text-color: #e0e0e0;
@@ -716,268 +716,343 @@ details, .track-wrapper, .controls {
 }
 
 /* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ ===== */
-body.dark .controls {
+html.dark .controls {
     background: #0f3460;
 }
 
-body.dark .control-box:first-child {
+html.dark .control-box:first-child {
     border-right-color: #2c3e50;
 }
 
-body.dark input, 
-body.dark select, 
-body.dark textarea {
+html.dark input, 
+html.dark select, 
+html.dark textarea {
     background: #1a1a2e;
     color: #e0e0e0;
     border-color: #2c3e50;
 }
 
-body.dark input:focus, 
-body.dark select:focus, 
-body.dark textarea:focus {
+html.dark input:focus, 
+html.dark select:focus, 
+html.dark textarea:focus {
     outline-color: #3498db;
 }
 
-body.dark .time-group input,
-body.dark .date-time-group input {
+html.dark .time-group input,
+html.dark .date-time-group input {
     background: #1a1a2e;
     color: #e0e0e0;
 }
 
-body.dark .date-buttons button {
+html.dark .date-buttons button {
     background: #0f3460;
     color: white;
     border-color: #2c3e50;
 }
 
-body.dark .date-buttons button:hover {
+html.dark .date-buttons button:hover {
     background: #1f618d;
 }
 
-body.dark .legend {
+html.dark .legend {
     background: #0f3460;
     color: #e0e0e0;
 }
 
-body.dark .legend-color {
+html.dark .legend-color {
     border: 1px solid #2c3e50;
 }
 
-body.dark .track-wrapper {
+html.dark .track-wrapper {
     background: #16213e;
     border-color: #2c3e50;
 }
 
-body.dark .alert-success {
+html.dark .alert-success {
     background: #1e8449;
     color: #d4edda;
     border-left-color: #27ae60;
 }
 
-body.dark .alert-error {
+html.dark .alert-error {
     background: #c0392b;
     color: #f8d7da;
     border-left-color: #e74c3c;
 }
 
-body.dark .refresh-btn {
+html.dark .refresh-btn {
     background: #0f3460;
     color: white;
     border: none;
 }
 
-body.dark .refresh-btn:hover {
+html.dark .refresh-btn:hover {
     background: #1f618d;
 }
 
-body.dark #editModal {
+html.dark #editModal {
     background: rgba(0,0,0,0.7);
 }
 
-body.dark #editModal > div {
+html.dark #editModal > div {
     background: #16213e;
     color: #e0e0e0;
 }
 
-body.dark #editModal input,
-body.dark #editModal textarea,
-body.dark #editModal select {
+html.dark #editModal input,
+html.dark #editModal textarea,
+html.dark #editModal select {
     background: #1a1a2e;
     color: #e0e0e0;
     border-color: #2c3e50;
 }
 
-body.dark .tooltip-row {
+html.dark .tooltip-row {
     border-bottom-color: #2c3e50;
 }
 
-body.dark .timer-block {
+html.dark .timer-block {
     border-top-color: #2c3e50;
 }
 
-body.dark .close-tooltip {
+html.dark .close-tooltip {
     color: #bdc3c7;
 }
 
-body.dark .close-tooltip:hover {
+html.dark .close-tooltip:hover {
     color: white;
 }
 
-body.dark .btn-remove-large {
+html.dark .btn-remove-large {
     background: #c0392b;
 }
 
-body.dark .btn-remove-large:hover {
+html.dark .btn-remove-large:hover {
     background: #e74c3c;
 }
 
 /* Стили для страницы настроек */
-body.dark .settings-section {
+html.dark .settings-section {
     background: #0f3460;
     border: 1px solid #2c3e50;
 }
 
-body.dark .form-row input,
-body.dark .form-row select {
+html.dark .form-row input,
+html.dark .form-row select {
     background: #1a1a2e;
     color: #e0e0e0;
     border-color: #2c3e50;
 }
 
-body.dark .btn-save {
+html.dark .btn-save {
     background: #1e8449;
 }
 
-body.dark .btn-save:hover {
+html.dark .btn-save:hover {
     background: #27ae60;
 }
 
 /* Стили для страницы привязки IP */
-body.dark .ip-form {
+html.dark .ip-form {
     background: #0f3460;
 }
 
-body.dark .ip-form input,
-body.dark .ip-form select {
+html.dark .ip-form input,
+html.dark .ip-form select {
     background: #1a1a2e;
     color: #e0e0e0;
     border-color: #2c3e50;
 }
 
-body.dark .ip-table {
+html.dark .ip-table {
     background: #16213e;
 }
 
-body.dark .ip-table th {
+html.dark .ip-table th {
     background: #0f3460;
     color: #ecf0f1;
 }
 
-body.dark .ip-table td {
+html.dark .ip-table td {
     border-color: #2c3e50;
     color: #e0e0e0;
 }
 
-body.dark .ip-table tr:nth-child(even) {
+html.dark .ip-table tr:nth-child(even) {
     background: #1a1a2e;
 }
 
-body.dark .delete-btn {
+html.dark .delete-btn {
     background: #c0392b;
 }
 
-body.dark .delete-btn:hover {
+html.dark .delete-btn:hover {
     background: #e74c3c;
 }
 
 /* Стили для страницы истории и архива */
-body.dark .search-box input {
+html.dark .search-box input {
     background: #1a1a2e;
     color: #e0e0e0;
     border-color: #2c3e50;
 }
 
-body.dark .search-box button {
+html.dark .search-box button {
     background: #0f3460;
 }
 
-body.dark .search-box button:hover {
+html.dark .search-box button:hover {
     background: #1f618d;
 }
 
-body.dark .history-table td {
+html.dark .history-table td {
     border-color: #2c3e50;
     color: #e0e0e0;
 }
 
-body.dark .history-table tr:nth-child(even) {
+html.dark .history-table tr:nth-child(even) {
     background: #1a1a2e;
 }
 
-body.dark .history-table tr:hover {
+html.dark .history-table tr:hover {
     background: #0f3460;
 }
 
-body.dark .edit-history-btn {
+html.dark .edit-history-btn {
     color: #3498db;
 }
 
-body.dark .edit-history-btn:hover {
+html.dark .edit-history-btn:hover {
     color: #e67e22;
 }
 
-/* ===== ОКОНЧАТЕЛЬНОЕ ПЕРЕКРАШИВАНИЕ ПОЛЕЙ ГЛОБАЛЬНОГО И ЛОКАЛЬНОГО СРОКОВ ===== */
-body.dark .control-box .time-group,
-body.dark .control-box .date-time-group,
-body.dark .control-box .time-group *,
-body.dark .control-box .date-time-group * {
-    background-color: transparent !important;
+/* ===== ПЕРЕКРАШИВАНИЕ БЛОКОВ ГЛОБАЛЬНОГО И ЛОКАЛЬНОГО СРОКОВ ===== */
+html.dark div[style*="background:#e8f6f3"],
+html.dark div[style*="background:#fef9e7"] {
+    background: #0f3460 !important;
 }
 
-body.dark .control-box .time-group input,
-body.dark .control-box .date-time-group input,
-body.dark .control-box .time-group select,
-body.dark .control-box .date-time-group select {
-    background: #1a1a2e !important;
+html.dark div[style*="background:#e8f6f3"] *,
+html.dark div[style*="background:#fef9e7"] * {
     color: #e0e0e0 !important;
-    border-color: #2c3e50 !important;
 }
 
-body.dark .control-box .time-group label,
-body.dark .control-box .date-time-group label {
+html.dark div[style*="background:#e8f6f3"] label,
+html.dark div[style*="background:#fef9e7"] label {
     color: #bdc3c7 !important;
 }
 
-body.dark .control-box .time-group,
-body.dark .control-box .date-time-group {
-    background: transparent !important;
-}
-
-/* Дополнительно – перекрашиваем любые поля внутри control-box */
-body.dark .control-box input,
-body.dark .control-box select,
-body.dark .control-box textarea {
+/* ===== ДОПОЛНИТЕЛЬНЫЕ ЭЛЕМЕНТЫ (pre, note, address, таблицы без классов) ===== */
+html.dark pre {
     background: #1a1a2e !important;
     color: #e0e0e0 !important;
     border-color: #2c3e50 !important;
 }
-/* ===== ПЕРЕКРАШИВАЕМ БЛОКИ ГЛОБАЛЬНОГО И ЛОКАЛЬНОГО СРОКОВ В ТЁМНОЙ ТЕМЕ ===== */
-body.dark .control-box > div[style*="background:#e8f6f3"],
-body.dark .control-box > div[style*="background:#fef9e7"],
-body.dark .control-box > div[style*="background:#e8f6f3"] *,
-body.dark .control-box > div[style*="background:#fef9e7"] * {
-    background-color: #0f3460 !important;
+
+html.dark .note {
+    background: #0f3460 !important;
+    color: #e0e0e0 !important;
+    border-left-color: #f39c12 !important;
+}
+
+html.dark .address {
+    background: #0f3460 !important;
     color: #e0e0e0 !important;
 }
 
-/* Если блоки не имеют inline-стилей, а имеют классы */
-body.dark .control-box > div:has(> label[style*="font-weight:bold"]),
-body.dark .control-box > div:has(> .time-group) {
+html.dark .color-box {
+    border: 1px solid #2c3e50 !important;
+}
+
+html.dark table:not(.ip-table):not(.history-table) {
+    background: #16213e;
+}
+html.dark table:not(.ip-table):not(.history-table) th {
+    background: #0f3460;
+    color: #ecf0f1;
+}
+html.dark table:not(.ip-table):not(.history-table) td {
+    border-color: #2c3e50;
+    color: #e0e0e0;
+}
+html.dark table:not(.ip-table):not(.history-table) tr:nth-child(even) {
+    background: #1a1a2e;
+}
+/* ===== ПОЛНОСТЬЮ ТЁМНАЯ ТЕМА ДЛЯ ВСЕХ ЭЛЕМЕНТОВ (включая раскрытые блоки) ===== */
+html.dark details,
+html.dark .details-content,
+html.dark .history-table,
+html.dark .history-table td,
+html.dark .history-table th,
+html.dark table,
+html.dark td,
+html.dark th,
+html.dark tr,
+html.dark tbody,
+html.dark thead {
+    background: #16213e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
+}
+
+html.dark .history-table th {
+    background: #0f3460 !important;
+    color: #ecf0f1 !important;
+}
+
+html.dark .history-table tr:nth-child(even),
+html.dark table tr:nth-child(even) {
+    background: #1a1a2e !important;
+}
+
+html.dark .history-table tr:hover,
+html.dark table tr:hover {
     background: #0f3460 !important;
 }
 
-/* Универсальное перекрашивание любых div с этими оттенками */
-body.dark div[style*="background:#e8f6f3"],
-body.dark div[style*="background:#fef9e7"] {
+/* Принудительно перекрашиваем summary и его содержимое */
+html.dark summary,
+html.dark summary * {
     background: #0f3460 !important;
+    color: #e0e0e0 !important;
+}
+
+html.dark .wagon-num {
+    color: #3498db !important;
+}
+
+html.dark .status-added,
+html.dark .status-moved,
+html.dark .status-departed,
+html.dark .status-edit {
+    background: transparent !important;
+    color: inherit !important;
+}
+
+/* Специально для страницы "О программе" – если она не переключается, принудительно перекрашиваем всё внутри .container */
+html.dark .container {
+    background: #16213e !important;
+}
+
+html.dark .container h1,
+html.dark .container h2,
+html.dark .container h3,
+html.dark .container p,
+html.dark .container li,
+html.dark .container td,
+html.dark .container th,
+html.dark .container .version {
+    color: #e0e0e0 !important;
+}
+
+html.dark .container .note,
+html.dark .container .address {
+    background: #0f3460 !important;
+    color: #e0e0e0 !important;
+    border-left-color: #f39c12 !important;
+}
+
+html.dark .container .nav-link {
+    background: #0f3460 !important;
+    color: white !important;
 }

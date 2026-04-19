@@ -1,10 +1,17 @@
-<!-- НАЧАЛО ФАЙЛА app/templates/admin_settings.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Настройки приложения</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
     <style>
         .settings-section {
             background: #f8f9fa;
@@ -87,11 +94,31 @@
             gap: 5px;
             margin-top: 10px;
         }
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 8px 15px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary { background: #3498db; }
+        .btn-success { background: #27ae60; }
+        .btn-danger { background: #e74c3c; }
+        .btn-secondary { background: #95a5a6; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="nav-bar">
+    <div class="nav-buttons">
         <a href="/" class="btn btn-primary">🏠 На главную</a>
         <a href="/admin/logs" class="btn btn-primary">📜 Журнал действий</a>
         <a href="/admin/ip_users" class="btn btn-primary">🔗 Привязка IP</a>
@@ -182,6 +209,8 @@
                 <label>Интервал обновления (сек):</label>
                 <input type="number" name="refresh_interval" value="{{ settings.get('refresh_interval', '5') }}" min="2" max="30">
             </div>
+            <!-- Тема оформления удалена, так как теперь она персональная -->
+        </div>
 
         <!-- ===== ПУТИ И ВАГОНЫ ===== -->
         <div class="settings-section">
@@ -276,6 +305,7 @@
     <input type="hidden" name="track_id" id="deleteTrackId">
 </form>
 
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <script>
     function generateKey() {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=';
@@ -332,7 +362,6 @@
         }
     }
 
-    // === Логика перемещения путей ===
     function moveTrackUp(btn) {
         const row = btn.closest('tr');
         const prevRow = row.previousElementSibling;
@@ -355,12 +384,9 @@
         rows.forEach(row => {
             order.push(row.dataset.trackId);
         });
-
         fetch('/admin/tracks/save_order', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ order: order })
         })
         .then(response => response.json())
@@ -378,4 +404,3 @@
 </script>
 </body>
 </html>
-<!-- КОНЕЦ ФАЙЛА app/templates/admin_settings.html -->

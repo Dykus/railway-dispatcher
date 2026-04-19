@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <title>ЖД Диспетчерская</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        // Мгновенное применение темы до отрисовки страницы (убирает белую вспышку)
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
 </head>
 <body>
 <div class="container">
@@ -22,6 +31,7 @@
             <a href="/admin/backups" class="btn btn-backup">💾 Бэкапы</a>
             <a href="/admin/logs" class="btn" style="background:#8e44ad;">📜 Журнал действий</a>
             <a href="/admin/ip_users" class="btn" style="background:#e67e22;">🔗 Привязка IP</a>
+            <a href="/admin/settings" class="btn" style="background:#16a085;">⚙️ Настройки</a>
         {% endif %}
         <a href="/help" class="btn btn-help">❓ Помощь</a>
     </div>
