@@ -1056,3 +1056,46 @@ html.dark .container .nav-link {
     background: #0f3460 !important;
     color: white !important;
 }
+/* Стили для таблицы цветов в справке (дневная тема) */
+.help-color-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    table-layout: fixed;
+}
+
+.help-color-table th,
+.help-color-table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.help-color-table th {
+    background: #ecf0f1;
+    color: #2c3e50;
+    font-weight: bold;
+}
+
+.help-color-table td {
+    background: white;
+    color: #2c3e50;
+}
+
+/* Цвета в дневной теме – тёмные, контрастные */
+.help-color-table td span {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Тёмная тема для таблицы цветов */
+html.dark .help-color-table th {
+    background: #0f3460;
+    color: #ecf0f1;
+}
+html.dark .help-color-table td {
+    background: #16213e;
+    color: #e0e0e0;
+    border-color: #2c3e50;
+}
