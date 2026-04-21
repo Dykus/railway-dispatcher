@@ -602,3 +602,47 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// ===== ПЕРЕКЛЮЧЕНИЕ ТЁМНОЙ ТЕМЫ (персональная) =====
+function applyTheme(theme) {
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        if (themeToggleBtn) themeToggleBtn.textContent = '☀️';
+    } else {
+        document.documentElement.classList.remove('dark');
+        if (themeToggleBtn) themeToggleBtn.textContent = '🌙';
+    }
+    localStorage.setItem('theme', theme);
+}
+
+// Создаём кнопку переключения темы
+const themeToggleBtn = document.createElement('button');
+themeToggleBtn.id = 'themeToggle';
+themeToggleBtn.style.cssText = 'background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 10px;';
+themeToggleBtn.title = 'Сменить тему';
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Ищем контейнер для кнопки – расширяем список возможных контейнеров
+    let targetContainer = document.querySelector('.nav-buttons');
+    if (!targetContainer) targetContainer = document.querySelector('.header-actions');
+    if (!targetContainer) targetContainer = document.querySelector('.nav-bar');
+    if (targetContainer) {
+        targetContainer.appendChild(themeToggleBtn);
+    } else {
+        console.warn('Не найден контейнер для кнопки темы');
+    }
+    
+    // Загружаем сохранённую тему
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        applyTheme('dark');
+    } else {
+        applyTheme('light');
+    }
+    
+    // Обработчик клика
+    themeToggleBtn.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        applyTheme(isDark ? 'light' : 'dark');
+    });
+});

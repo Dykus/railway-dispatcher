@@ -1,6 +1,7 @@
+# НАЧАЛО ФАЙЛА app/routes/admin.py
 # -*- coding: utf-8 -*-
 """
-Административные маршруты: бэкапы, журнал действий, управление IP, список изменений.
+Административные маршруты: бэкапы, журнал действий, управление IP, список изменений, настройки, пути.
 """
 
 from flask import Blueprint, request, send_file, flash, redirect, url_for, render_template, jsonify
@@ -14,7 +15,11 @@ from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from config import BACKUP_DIR, DB_NAME, CHANGELOG_PATH, APP_VERSION
-from app.models import get_conn
+from app.models import (
+    get_conn, get_all_settings, set_setting,
+    get_all_tracks, add_track, update_track, delete_track,
+    move_track_up, move_track_down
+)
 from app.utils import log_action, parse_flexible_date
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -143,7 +148,14 @@ def view_logs():
         'ip_user_delete': 'Удаление привязки IP',
         'edit': 'Редактирование вагона',
         'backup_auto': 'Автоматический бэкап',
-        'edit_history': 'Редактирование истории'
+        'edit_history': 'Редактирование истории',
+        'track_add': 'Добавление пути',
+        'track_edit': 'Редактирование пути',
+        'track_delete': 'Удаление пути',
+        'track_move': 'Изменение порядка путей',
+        'track_reorder': 'Сохранение порядка путей',
+        'backup_remote': 'Удалённый бэкап',
+        'backup_remote_error': 'Ошибка удалённого бэкапа'
     }
     return render_template('admin_logs.html', logs=logs, action_translation=action_translation)
 
@@ -177,7 +189,14 @@ def export_logs_excel():
         'ip_user_delete': 'Удаление привязки IP',
         'edit': 'Редактирование вагона',
         'backup_auto': 'Автоматический бэкап',
-        'edit_history': 'Редактирование истории'
+        'edit_history': 'Редактирование истории',
+        'track_add': 'Добавление пути',
+        'track_edit': 'Редактирование пути',
+        'track_delete': 'Удаление пути',
+        'track_move': 'Изменение порядка путей',
+        'track_reorder': 'Сохранение порядка путей',
+        'backup_remote': 'Удалённый бэкап',
+        'backup_remote_error': 'Ошибка удалённого бэкапа'
     }
     df['Действие'] = df['Действие'].map(action_map).fillna(df['Действие'])
     output = io.BytesIO()
@@ -324,3 +343,87 @@ def changelog():
     with open(CHANGELOG_PATH, 'r', encoding='utf-8') as f:
         content = f.read()
     return render_template('changelog.html', content=content)
+
+
+# ==================== НАСТРОЙКИ ====================
+@admin_bp.route('/settings', methods=['GET', 'POST'])
+def settings():
+    if request.user_role != 'admin':
+        return "Доступ запрещён", 403
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        # Управление путями
+        if action == 'add_track':
+            name = request.form.get('track_name', '').strip()
+            length = request.form.get('track_length', '')
+            track_type = request.form.get('track_type', 'normal')
+            if name and length:
+                success, msg = add_track(name, length, track_type)
+                flash(msg, 'success' if success else 'error')
+            else:
+                flash("Название и длина обязательны", 'error')
+            return redirect(url_for('admin.settings'))
+        elif action == 'edit_track':
+            track_id = request.form.get('track_id')
+            name = request.form.get('track_name', '').strip()
+            length = request.form.get('track_length', '')
+            track_type = request.form.get('track_type', 'normal')
+            if track_id and name and length:
+                success, msg = update_track(track_id, name, length, track_type)
+                flash(msg, 'success' if success else 'error')
+            else:
+                flash("Название и длина обязательны", 'error')
+            return redirect(url_for('admin.settings'))
+        elif action == 'delete_track':
+            track_id = request.form.get('track_id')
+            if track_id:
+                success, msg = delete_track(track_id)
+                flash(msg, 'success' if success else 'error')
+            return redirect(url_for('admin.settings'))
+        # Сохранение всех настроек
+        else:
+            keys = [
+                'port', 'secret_key', 'backup_hour', 'backup_keep_count',
+                'remote_path', 'remote_user', 'remote_password',
+                'log_max_mb', 'log_backup_count', 'refresh_interval',
+                'theme', 'default_wagon_length', 'wagon_spacing'
+            ]
+            for key in keys:
+                value = request.form.get(key, '')
+                set_setting(key, value)
+            set_setting('remote_enabled', '1' if request.form.get('remote_enabled') else '0')
+            flash('Настройки сохранены', 'success')
+            return redirect(url_for('admin.settings'))
+
+    settings_dict = get_all_settings()
+    tracks = get_all_tracks()
+    return render_template('admin_settings.html', settings=settings_dict, tracks=tracks)
+
+
+# ==================== СОХРАНЕНИЕ ПОРЯДКА ПУТЕЙ ====================
+@admin_bp.route('/tracks/save_order', methods=['POST'])
+def save_tracks_order():
+    if request.user_role != 'admin':
+        return jsonify({"error": "Доступ запрещён"}), 403
+
+    data = request.get_json()
+    if not data or 'order' not in data:
+        return jsonify({"error": "Неверные данные"}), 400
+
+    order = data['order']
+    conn = get_conn()
+    c = conn.cursor()
+    try:
+        for idx, track_id in enumerate(order, start=1):
+            c.execute("UPDATE tracks SET sort_order = ? WHERE id = ?", (idx, track_id))
+        conn.commit()
+        log_action('track_reorder', details="Обновлён порядок путей")
+        return jsonify({"success": True, "message": "Порядок сохранён"})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+# КОНЕЦ ФАЙЛА app/routes/admin.py

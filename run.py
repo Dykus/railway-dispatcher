@@ -9,18 +9,18 @@ import sys
 import threading
 import webbrowser
 import logging
+import socket
 from logging.handlers import RotatingFileHandler
 
-# Добавляем текущую директорию в путь
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app
 from config import BASE_DIR, APP_VERSION
+from app.models import get_setting
 
-# Глобальная переменная для IP сервера
 SERVER_IP = None
+CURRENT_PORT = 5000
 
-# Попытка импорта pystray для иконки в трее
 try:
     import pystray
     from PIL import Image, ImageDraw
@@ -30,37 +30,47 @@ except ImportError:
     print("Для работы иконки в трее установите: pip install pystray pillow")
 
 
-def create_tray_icon():
-    """Создаёт и запускает иконку в системном трее."""
+# ==================== ОПРЕДЕЛЕНИЕ ЛОКАЛЬНОГО IP (БЕЗ ВНЕШНЕГО СОЕДИНЕНИЯ) ====================
+def get_local_ip():
+    """Возвращает локальный IP-адрес в сети (без доступа в интернет)."""
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        # Если получился localhost, пробуем альтернативный метод
+        if ip.startswith('127.'):
+            # Попробуем получить IP через подключение к локальному серверу (не требует интернета)
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.settimeout(0.1)
+                # Не отправляем данные, просто пытаемся связаться с несуществующим адресом,
+                # чтобы получить имя интерфейса. Это не требует внешнего соединения.
+                try:
+                    s.connect(('1.1.1.1', 1))
+                    ip = s.getsockname()[0]
+                except Exception:
+                    pass
+            if ip.startswith('127.'):
+                return '127.0.0.1'
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+
+def create_tray_icon(port):
     if not HAS_TRAY:
         return
-
-    # Определяем, где искать иконку
-    if getattr(sys, 'frozen', False):
-        # Запущено как EXE – ищем внутри _MEIPASS
-        base_path = sys._MEIPASS
-    else:
-        base_path = BASE_DIR
-
-    # Пытаемся загрузить иконку из файла
+    base_path = sys._MEIPASS if getattr(sys, 'frozen', False) else BASE_DIR
     img = None
-    icon_path = None
     for ext in ['.ico', '.png']:
         test_path = os.path.join(base_path, f'icon{ext}')
         if os.path.exists(test_path):
-            icon_path = test_path
+            try:
+                img = Image.open(test_path)
+                img = img.resize((64, 64), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS)
+            except Exception as e:
+                logging.warning(f"Не удалось загрузить иконку из {test_path}: {e}")
+                img = None
             break
 
-    if icon_path:
-        try:
-            img = Image.open(icon_path)
-            # Приводим к размеру 64x64
-            img = img.resize((64, 64), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS)
-        except Exception as e:
-            logging.warning(f"Не удалось загрузить иконку из {icon_path}: {e}")
-            img = None
-
-    # Если иконку не удалось загрузить, рисуем стандартную
     if img is None:
         logging.info("Иконка не найдена, используется стандартная (рисованная)")
         img = Image.new('RGB', (64, 64), color='#2c3e50')
@@ -78,7 +88,10 @@ def create_tray_icon():
         draw.ellipse([(52, 14), (60, 22)], fill='#bdc3c7')
 
     def on_open(icon, item):
-        webbrowser.open('http://127.0.0.1:5000')
+        webbrowser.open(f'http://127.0.0.1:{port}')
+
+    def on_settings(icon, item):
+        webbrowser.open(f'http://127.0.0.1:{port}/admin/settings')
 
     def on_quit(icon, item):
         icon.stop()
@@ -86,6 +99,7 @@ def create_tray_icon():
 
     menu = pystray.Menu(
         pystray.MenuItem("🚂 Открыть", on_open),
+        pystray.MenuItem("⚙️ Настройки", on_settings),
         pystray.MenuItem("❌ Выход", on_quit)
     )
     icon = pystray.Icon("railway_dispatcher", img, "ЖД Диспетчерская", menu)
@@ -93,13 +107,15 @@ def create_tray_icon():
 
 
 def setup_logging():
-    """Настраивает подробное логирование в файл с ротацией."""
+    """Настраивает логирование с ротацией (параметры из БД)."""
     log_file = os.path.join(BASE_DIR, 'railway_dispatcher.log')
+    max_bytes = int(get_setting('log_max_mb', '5')) * 1024 * 1024
+    backup_count = int(get_setting('log_backup_count', '5'))
 
     file_handler = RotatingFileHandler(
         log_file,
-        maxBytes=5 * 1024 * 1024,  # 5 MB
-        backupCount=5,
+        maxBytes=max_bytes,
+        backupCount=backup_count,
         encoding='utf-8'
     )
     file_handler.setLevel(logging.DEBUG)
@@ -121,66 +137,57 @@ def setup_logging():
     logging.getLogger('flask').setLevel(logging.INFO)
 
 
-def print_startup_info():
-    """Выводит информацию о запуске (через логгер)."""
+def print_startup_info(port):
     logging.info("=" * 50)
     logging.info(f"🚂 ЖД Диспетчерская запущена (версия {APP_VERSION})")
     logging.info("=" * 50)
-    logging.info(f"📁 База данных: {os.path.join(BASE_DIR, 'rail_yard.db')}")
-    logging.info(f"🌐 Локальный адрес: http://127.0.0.1:5000")
-    try:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        logging.info(f"🌐 Сетевой адрес: http://{local_ip}:5000")
-        global SERVER_IP
-        SERVER_IP = local_ip
-    except:
-        logging.info("🌐 Сетевой адрес: не удалось определить")
+    logging.info(f"📁 База данных: {os.path.join(BASE_DIR, 'rail_yard_v4.db')}")
+    logging.info(f"🌐 Локальный адрес: http://127.0.0.1:{port}")
+    local_ip = get_local_ip()
+    if local_ip != '127.0.0.1':
+        logging.info(f"🌐 Сетевой адрес: http://{local_ip}:{port}")
+    else:
+        logging.info("🌐 Сетевой адрес: не удалось определить (используйте локальный)")
+    global SERVER_IP
+    SERVER_IP = local_ip
     logging.info("=" * 50)
     logging.info("Для остановки нажмите Ctrl+C или используйте иконку в трее")
     logging.info("=" * 50)
 
 
 if __name__ == '__main__':
-    # --- Проверка единственного экземпляра приложения ---
+    # Проверка единственного экземпляра
     try:
-        import win32event
-        import win32api
-        import winerror
-
-        mutex_name = "RailwayDispatcher_App_Mutex"
-        mutex = win32event.CreateMutex(None, False, mutex_name)
+        import win32event, win32api, winerror
+        mutex = win32event.CreateMutex(None, False, "RailwayDispatcher_App_Mutex")
         if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
-            # Приложение уже запущено
-            print("Программа уже запущена. Второй экземпляр не может быть запущен.")
+            print("Программа уже запущена.")
             sys.exit(1)
     except ImportError:
-        # Если pywin32 не установлен, пропускаем проверку (только для разработки)
         logging.warning("pywin32 не установлен, проверка единственного экземпляра отключена.")
-    # ------------------------------------------------------
 
-    # Настройка логирования
-    setup_logging()
-
-    # Создаём приложение
+    # Создаём приложение (инициализирует БД)
     app = create_app()
 
-    # Выводим стартовую информацию (попадёт в лог)
-    print_startup_info()
+    # Настраиваем логирование (теперь БД уже существует)
+    setup_logging()
 
-    # Запускаем сервер в отдельном потоке
+    # Читаем порт из настроек
+    try:
+        CURRENT_PORT = int(get_setting('port', '5000'))
+    except:
+        CURRENT_PORT = 5000
+
+    print_startup_info(CURRENT_PORT)
+
     server_thread = threading.Thread(
-        target=lambda: app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False),
+        target=lambda: app.run(host='0.0.0.0', port=CURRENT_PORT, debug=False, use_reloader=False),
         daemon=True
     )
     server_thread.start()
 
-    # Запускаем иконку в трее или просто ждём
     if HAS_TRAY:
-        create_tray_icon()
+        create_tray_icon(CURRENT_PORT)
     else:
-        logging.warning("Иконка в трее не доступна. Для выхода нажмите Ctrl+C")
+        logging.warning("Иконка в трее не доступна.")
         server_thread.join()

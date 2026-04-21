@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Настройки приложения</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    <style>
+        .settings-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .settings-section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 1px solid #bdc3c7;
+            padding-bottom: 10px;
+        }
+        .form-row {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .form-row label {
+            width: 220px;
+            font-weight: bold;
+        }
+        .form-row input[type="text"],
+        .form-row input[type="number"],
+        .form-row input[type="password"],
+        .form-row select {
+            width: 300px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-row input[type="checkbox"] {
+            margin-right: 10px;
+        }
+        .hint {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-left: 220px;
+            margin-top: 5px;
+        }
+        .btn-save {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .track-table {
+            width: 100%;
+            margin-top: 15px;
+        }
+        .track-table th {
+            background: #34495e;
+            color: white;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 400px;
+            max-width: 90%;
+        }
+        .order-buttons {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 8px 15px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary { background: #3498db; }
+        .btn-success { background: #27ae60; }
+        .btn-danger { background: #e74c3c; }
+        .btn-secondary { background: #95a5a6; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav-buttons">
+        <a href="/" class="btn btn-primary">🏠 На главную</a>
+        <a href="/admin/logs" class="btn btn-primary">📜 Журнал действий</a>
+        <a href="/admin/ip_users" class="btn btn-primary">🔗 Привязка IP</a>
+        <a href="/admin/backups" class="btn btn-primary">💾 Бэкапы</a>
+        <a href="/admin/changelog" class="btn btn-primary">📋 Список изменений</a>
+    </div>
+
+    <h1>⚙️ Настройки приложения</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="post" id="mainSettingsForm">
+        <!-- ===== ОСНОВНЫЕ ===== -->
+        <div class="settings-section">
+            <h3>📌 Основные</h3>
+            <div class="form-row">
+                <label>Порт сервера:</label>
+                <input type="number" name="port" value="{{ settings.get('port', '5000') }}" min="1" max="65535">
+            </div>
+            <div class="hint">Требуется перезапуск приложения</div>
+
+            <div class="form-row">
+                <label>Секретный ключ:</label>
+                <input type="text" name="secret_key" value="{{ settings.get('secret_key', '') }}" style="width:400px;">
+                <button type="button" onclick="generateKey()" style="margin-left:10px;">🔄 Сгенерировать</button>
+            </div>
+            <div class="hint">После смены все пользователи будут разлогинены</div>
+        </div>
+
+        <!-- ===== РЕЗЕРВНОЕ КОПИРОВАНИЕ ===== -->
+        <div class="settings-section">
+            <h3>💾 Резервное копирование</h3>
+            <div class="form-row">
+                <label>Час авт. бэкапа (0-23):</label>
+                <input type="number" name="backup_hour" value="{{ settings.get('backup_hour', '3') }}" min="0" max="23">
+            </div>
+            <div class="form-row">
+                <label>Хранить копий:</label>
+                <input type="number" name="backup_keep_count" value="{{ settings.get('backup_keep_count', '30') }}" min="1" max="100">
+            </div>
+        </div>
+
+        <!-- ===== УДАЛЁННОЕ КОПИРОВАНИЕ ===== -->
+        <div class="settings-section">
+            <h3>🗄️ Удалённое копирование (сетевая папка)</h3>
+            <div class="form-row">
+                <label>
+                    <input type="checkbox" name="remote_enabled" value="1" {% if settings.get('remote_enabled', '0') == '1' %}checked{% endif %}> Включить копирование
+                </label>
+            </div>
+            <div class="form-row">
+                <label>Сетевой путь (UNC):</label>
+                <input type="text" name="remote_path" value="{{ settings.get('remote_path', '') }}" placeholder="\\server\share\backup" style="width:400px;">
+            </div>
+            <div class="form-row">
+                <label>Имя пользователя:</label>
+                <input type="text" name="remote_user" value="{{ settings.get('remote_user', '') }}" placeholder="DOMAIN\User">
+            </div>
+            <div class="form-row">
+                <label>Пароль:</label>
+                <input type="password" name="remote_password" placeholder="Оставьте пустым, чтобы не менять">
+            </div>
+        </div>
+
+        <!-- ===== ЛОГИРОВАНИЕ ===== -->
+        <div class="settings-section">
+            <h3>📝 Логирование</h3>
+            <div class="form-row">
+                <label>Макс. размер лога (МБ):</label>
+                <input type="number" name="log_max_mb" value="{{ settings.get('log_max_mb', '5') }}" min="1" max="100">
+            </div>
+            <div class="form-row">
+                <label>Количество файлов ротации:</label>
+                <input type="number" name="log_backup_count" value="{{ settings.get('log_backup_count', '5') }}" min="1" max="20">
+            </div>
+        </div>
+
+        <!-- ===== ИНТЕРФЕЙС ===== -->
+        <div class="settings-section">
+            <h3>🖥️ Интерфейс</h3>
+            <div class="form-row">
+                <label>Интервал обновления (сек):</label>
+                <input type="number" name="refresh_interval" value="{{ settings.get('refresh_interval', '5') }}" min="2" max="30">
+            </div>
+            <!-- Тема оформления удалена, так как теперь она персональная -->
+        </div>
+
+        <!-- ===== ПУТИ И ВАГОНЫ ===== -->
+        <div class="settings-section">
+            <h3>🛤️ Пути и вагоны</h3>
+            <div class="form-row">
+                <label>Длина нового вагона (м):</label>
+                <input type="number" name="default_wagon_length" value="{{ settings.get('default_wagon_length', '10.0') }}" step="0.1" min="1">
+            </div>
+            <div class="form-row">
+                <label>Интервал между вагонами (м):</label>
+                <input type="number" name="wagon_spacing" value="{{ settings.get('wagon_spacing', '50.0') }}" step="0.1" min="0">
+            </div>
+
+            <h4 style="margin-top:25px;">Список путей</h4>
+            <table class="track-table" id="tracksTable">
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                        <th>Длина (м)</th>
+                        <th>Тип</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="tracksBody">
+                    {% for track in tracks %}
+                    <tr data-track-id="{{ track[0] }}">
+                        <td>{{ track[1] }}</td>
+                        <td>{{ track[2] }}</td>
+                        <td>
+                            {% if track[3] == 'normal' %}Обычный
+                            {% elif track[3] == 'return' %}Возвратный
+                            {% else %}{{ track[3] }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-primary" style="padding:2px 8px;"
+                                    onclick="editTrack({{ track[0] }}, '{{ track[1] }}', {{ track[2] }}, '{{ track[3] }}')">✏️</button>
+                            <button type="button" class="btn btn-danger" style="padding:2px 8px;"
+                                    onclick="deleteTrack({{ track[0] }}, '{{ track[1] }}')">🗑️</button>
+                            <button type="button" class="btn btn-secondary" style="padding:2px 8px;" onclick="moveTrackUp(this)">⬆️</button>
+                            <button type="button" class="btn btn-secondary" style="padding:2px 8px;" onclick="moveTrackDown(this)">⬇️</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="order-buttons">
+                <button type="button" class="btn btn-success" onclick="addTrack()">➕ Добавить путь</button>
+                <button type="button" class="btn btn-primary" onclick="saveTracksOrder()">💾 Сохранить порядок путей</button>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <button type="submit" class="btn-save">💾 Сохранить все настройки</button>
+        </div>
+    </form>
+</div>
+
+<!-- Модальное окно для добавления/редактирования пути -->
+<div id="trackModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Добавить путь</h3>
+        <form method="post" id="trackForm">
+            <input type="hidden" name="action" id="trackAction" value="add_track">
+            <input type="hidden" name="track_id" id="trackId">
+            <div class="form-row">
+                <label>Название:</label>
+                <input type="text" name="track_name" id="trackName" required>
+            </div>
+            <div class="form-row">
+                <label>Длина (м):</label>
+                <input type="number" name="track_length" id="trackLength" step="0.1" min="1" required>
+            </div>
+            <div class="form-row">
+                <label>Тип:</label>
+                <select name="track_type" id="trackType">
+                    <option value="normal">Обычный</option>
+                    <option value="return">Возвратный</option>
+                </select>
+            </div>
+            <div style="text-align: right;">
+                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Форма для удаления пути -->
+<form method="post" id="deleteTrackForm" style="display:none;">
+    <input type="hidden" name="action" value="delete_track">
+    <input type="hidden" name="track_id" id="deleteTrackId">
+</form>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+    function generateKey() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=';
+        let key = '';
+        for (let i = 0; i < 32; i++) {
+            key += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        document.querySelector('input[name="secret_key"]').value = key;
+    }
+
+    const modal = document.getElementById('trackModal');
+    const trackForm = document.getElementById('trackForm');
+    const trackAction = document.getElementById('trackAction');
+    const trackId = document.getElementById('trackId');
+    const trackName = document.getElementById('trackName');
+    const trackLength = document.getElementById('trackLength');
+    const trackType = document.getElementById('trackType');
+    const modalTitle = document.getElementById('modalTitle');
+
+    function addTrack() {
+        trackAction.value = 'add_track';
+        trackId.value = '';
+        trackName.value = '';
+        trackLength.value = '1000.0';
+        trackType.value = 'normal';
+        modalTitle.textContent = 'Добавить путь';
+        modal.style.display = 'flex';
+    }
+
+    function editTrack(id, name, length, type) {
+        trackAction.value = 'edit_track';
+        trackId.value = id;
+        trackName.value = name;
+        trackLength.value = length;
+        trackType.value = type;
+        modalTitle.textContent = 'Редактировать путь';
+        modal.style.display = 'flex';
+    }
+
+    function deleteTrack(id, name) {
+        if (confirm(`Удалить путь "${name}"? Это возможно только если на нём нет активных вагонов.`)) {
+            document.getElementById('deleteTrackId').value = id;
+            document.getElementById('deleteTrackForm').submit();
+        }
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    function moveTrackUp(btn) {
+        const row = btn.closest('tr');
+        const prevRow = row.previousElementSibling;
+        if (prevRow) {
+            row.parentNode.insertBefore(row, prevRow);
+        }
+    }
+
+    function moveTrackDown(btn) {
+        const row = btn.closest('tr');
+        const nextRow = row.nextElementSibling;
+        if (nextRow) {
+            row.parentNode.insertBefore(nextRow, row);
+        }
+    }
+
+    function saveTracksOrder() {
+        const rows = document.querySelectorAll('#tracksBody tr');
+        const order = [];
+        rows.forEach(row => {
+            order.push(row.dataset.trackId);
+        });
+        fetch('/admin/tracks/save_order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: order })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Порядок путей сохранён');
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Ошибка сети: ' + error);
+        });
+    }
+</script>
+</body>
+</html>

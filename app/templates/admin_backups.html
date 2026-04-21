@@ -4,15 +4,44 @@
     <meta charset="UTF-8">
     <title>Резервные копии</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    <style>
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 8px 15px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-success { background: #27ae60; }
+        .btn-danger { background: #e74c3c; }
+    </style>
 </head>
 <body>
 <div class="container">
     <h1>📦 Резервные копии базы данных</h1>
-    <div class="nav-bar">
-        <a href="/" class="btn btn-primary">🏠 На главную</a>
-        <a href="/admin/logs" class="btn btn-primary">📜 Журнал действий</a>
-        <a href="/admin/ip_users" class="btn btn-primary">🔗 Привязка IP</a>
-        <a href="/admin/changelog" class="btn btn-primary">📋 Список изменений</a>
+    <div class="nav-buttons">
+        <a href="/" class="btn">🏠 На главную</a>
+        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
+        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
+        <a href="/admin/changelog" class="btn">📋 Список изменений</a>
+        <a href="/admin/settings" class="btn">⚙️ Настройки</a>
     </div>
     <p><a href="#" onclick="event.preventDefault(); fetch('/admin/backup', {method:'POST'}).then(r=>r.text()).then(alert);" class="btn btn-success">➕ Создать новую копию</a></p>
     <table>
@@ -23,7 +52,7 @@
             <td>{{ (b.size / 1024) | round(1) }}</td>
             <td>{{ b.modified }}</td>
             <td>
-                <a href="/admin/download_backup?rel_path={{ b.rel_path }}" class="btn btn-primary">📥 Скачать</a>
+                <a href="/admin/download_backup?rel_path={{ b.rel_path }}" class="btn">📥 Скачать</a>
                 <a href="#" onclick="restore('{{ b.rel_path }}'); return false;" class="btn btn-danger">🔄 Восстановить</a>
             </td>
         </tr>
@@ -41,5 +70,6 @@ function restore(relPath) {
     }
 }
 </script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

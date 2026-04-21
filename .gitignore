@@ -25,6 +25,9 @@ dist/
 Thumbs.db
 RailwayDispatcher.exe
 
+RailwayDispatcher304.exe
+RailwayDispatcher_v4_beta.exe
+
 # Файлы логов
 *.log
 
