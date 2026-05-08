@@ -354,8 +354,33 @@ def move_action():
 
 @main_bp.route('/depart/<int:wagon_id>', methods=['POST'])
 def depart_action(wagon_id):
-    if depart_wagon(wagon_id):
-        flash("✅ Вагон убран в архив.", 'success')
+    conn = get_conn()
+    c = conn.cursor()
+    
+    # 1. Узнаем, на каком пути был вагон, чтобы уплотнить именно этот путь
+    c.execute("SELECT track_id, wagon_number FROM wagons WHERE id = ?", (wagon_id,))
+    row = c.fetchone()
+    
+    if row:
+        track_id, wagon_number = row
+        
+        # 2. Выполняем удаление (архивацию)
+        if depart_wagon(wagon_id):
+            # 3. ВАЖНО: Уплотняем путь после удаления вагона
+            compact_track(track_id)
+            
+            conn.commit()
+            conn.close()
+            
+            log_movement(wagon_number, 'departed', None, None, "Убыл со станции", datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            log_action('depart', wagon_number=wagon_number, details=f"Убыл со станции")
+            
+            flash("✅ Вагон убран в архив.", 'success')
+        else:
+            conn.close()
+            flash("⚠️ Ошибка при удалении.", 'error')
     else:
-        flash("⚠️ Ошибка при удалении.", 'error')
+        conn.close()
+        flash("⚠️ Вагон не найден.", 'error')
+        
     return redirect(url_for('main.index'))
