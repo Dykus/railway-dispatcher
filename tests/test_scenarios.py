@@ -36,7 +36,7 @@ def app():
     flask_app = create_app()
     flask_app.config['TESTING'] = True
 
-    # Отключаем проверку прав доступа (для тестов логики)
+    # Отключаем проверку прав доступа для большинства тестов (admin по умолчанию)
     @flask_app.before_request
     def fake_auth():
         from flask import request
@@ -136,17 +136,108 @@ def test_move_wagon_and_local_deadline(client):
 
 def test_viewer_cannot_add_wagon(app):
     """Роль viewer не должна иметь права добавлять вагоны."""
-    # Временно переопределяем before_request для проверки прав
-    @app.before_request
-    def set_viewer_role():
-        from flask import request
-        request.user_role = 'viewer'
+    # Добавляем запись в ip_users для тестового IP с ролью viewer
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO ip_users (ip_address, username, role, access_allowed) VALUES (?, ?, ?, ?)",
+              ('10.0.0.99', 'viewer_test', 'viewer', 1))
+    conn.commit()
+    conn.close()
 
+    # Делаем запрос с этого IP
     with app.test_client() as client:
-        response = client.post('/add', data={
-            'number': '12345678',
-            'owner': 'Кто-то',
-            'organization': 'Где-то',
-            'track_id': '1'
-        })
+        response = client.post('/add', 
+                               data={
+                                   'number': '12345678',
+                                   'owner': 'Кто-то',
+                                   'organization': 'Где-то',
+                                   'track_id': '1'
+                               },
+                               environ_base={'REMOTE_ADDR': '10.0.0.99'})
         assert response.status_code == 403
+def test_depart_and_compact_track(client):
+    """При архивации вагона оставшиеся должны сдвигаться (уплотнение)."""
+    # Добавляем два вагона на путь 8 (Резерв, длина 2000)
+    client.post('/add', data={
+        'number': 'DEP001',
+        'owner': 'ТК А',
+        'organization': 'Орг А',
+        'track_id': '8',
+        'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+    client.post('/add', data={
+        'number': 'DEP002',
+        'owner': 'ТК Б',
+        'organization': 'Орг Б',
+        'track_id': '8',
+        'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+
+    # Получаем ID вагонов
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id, start_pos FROM wagons WHERE wagon_number = 'DEP001'")
+    dep001 = c.fetchone()
+    c.execute("SELECT id, start_pos FROM wagons WHERE wagon_number = 'DEP002'")
+    dep002 = c.fetchone()
+    conn.close()
+
+    assert dep001 is not None
+    assert dep002 is not None
+    pos_before = dep002[1]   # начальная позиция второго вагона (должна быть > 0)
+
+    # Архивируем первый вагон (отправляем запрос на depart)
+    response = client.post(f'/depart/{dep001[0]}', follow_redirects=True)
+    assert response.status_code == 200
+    assert 'Вагон убран в архив' in response.data.decode('utf-8')
+
+    # Проверяем, что второй вагон сдвинулся на 0
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT start_pos FROM wagons WHERE id = ?", (dep002[0],))
+    new_pos = c.fetchone()[0]
+    conn.close()
+    assert new_pos == 0.0, f"После архивации позиция должна быть 0, а стала {new_pos}"
+    assert pos_before > 0  # изначально он был не на нуле
+def test_restore_from_archive(client):
+    """Вагон с тем же номером после архивации должен восстанавливаться."""
+    # 1. Добавляем вагон и сразу архивируем
+    client.post('/add', data={
+        'number': 'RESTORE1',
+        'owner': 'ТК В',
+        'organization': 'Орг В',
+        'track_id': '1',   # Ст. Черкасов Камень — возвратный, можно архивировать
+        'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id FROM wagons WHERE wagon_number = 'RESTORE1'")
+    wagon_id = c.fetchone()[0]
+    conn.close()
+
+    # Архивация
+    client.post(f'/depart/{wagon_id}')
+
+    # 2. Добавляем снова тот же номер
+    response = client.post('/add', data={
+        'number': 'RESTORE1',
+        'owner': 'Новая ТК',
+        'organization': 'Новая Орг',
+        'track_id': '3',
+        'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    }, follow_redirects=True)
+
+    assert response.status_code == 200
+    assert 'восстановлен' in response.data.decode('utf-8')
+
+    # Проверяем, что в таблице wagons он снова активен (is_archived=0)
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT is_archived, owner FROM wagons WHERE wagon_number = 'RESTORE1'")
+    row = c.fetchone()
+    conn.close()
+    assert row[0] == 0  # не в архиве
+    assert row[1] == 'Новая ТК'  # данные обновились
