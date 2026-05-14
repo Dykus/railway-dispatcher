@@ -327,12 +327,23 @@ def move_action():
                                version=APP_VERSION,
                                refresh_interval=refresh_interval)
 
+    # --- Сохраняем старый путь ДО перемещения ---
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT track_id FROM wagons WHERE id = ?", (wagon_id,))
+    old_track = c.fetchone()
+    old_track_id = old_track[0] if old_track else None
+    conn.close()
+
     manual_start = None
     if start_date and start_time:
         manual_start = f"{start_date} {start_time}"
 
     success, msg = move_wagon(wagon_id, new_track_id, l_days, l_hours, l_mins, manual_start, note)
     if success:
+        # --- Уплотняем СТАРЫЙ путь после перемещения ---
+        if old_track_id is not None:
+            compact_track(old_track_id)
         flash(msg, 'success')
         return redirect(url_for('main.index'))
     else:
