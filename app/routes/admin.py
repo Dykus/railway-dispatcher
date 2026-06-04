@@ -387,12 +387,14 @@ def settings():
                 'port', 'secret_key', 'backup_hour', 'backup_keep_count',
                 'remote_path', 'remote_user', 'remote_password',
                 'log_max_mb', 'log_backup_count', 'refresh_interval',
-                'theme', 'default_wagon_length', 'wagon_spacing'
+                'theme', 'default_wagon_length', 'wagon_spacing',
+                'overstay_rate_base', 'overstay_threshold1', 'overstay_rate1',
+                'overstay_threshold2', 'overstay_rate2', 'overstay_rate3'
             ]
             for key in keys:
                 value = request.form.get(key, '')
                 set_setting(key, value)
-            set_setting('remote_enabled', '1' if request.form.get('remote_enabled') else '0')
+            set_setting('overstay_progressive', '1' if request.form.get('overstay_progressive') else '0')
             flash('Настройки сохранены', 'success')
             return redirect(url_for('admin.settings'))
 

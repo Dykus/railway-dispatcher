@@ -1,3 +1,4 @@
+# app/models.py
 # -*- coding: utf-8 -*-
 """
 Модели данных и функции работы с базой данных.
@@ -45,7 +46,6 @@ def init_db():
                     sort_order INTEGER DEFAULT 0
                 )''')
     
-    # Добавляем поле sort_order, если его ещё нет
     try:
         c.execute("ALTER TABLE tracks ADD COLUMN sort_order INTEGER DEFAULT 0")
     except:
@@ -118,6 +118,19 @@ def init_db():
             ('wagon_spacing', '50.0')
         ]
         c.executemany("INSERT INTO app_settings (key, value) VALUES (?, ?)", default_settings)
+
+    # Настройки штрафов за перепростой
+    overstay_defaults = [
+        ('overstay_progressive', '0'),
+        ('overstay_rate_base', '0'),
+        ('overstay_threshold1', '3'),
+        ('overstay_rate1', '1000'),
+        ('overstay_threshold2', '7'),
+        ('overstay_rate2', '1500'),
+        ('overstay_rate3', '2000')
+    ]
+    for key, val in overstay_defaults:
+        c.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", (key, val))
     
     c.execute("UPDATE ip_users SET role='admin', access_allowed=1 WHERE is_admin=1 AND (role='dispatcher' OR role='')")
     c.execute("UPDATE ip_users SET access_allowed=1 WHERE is_admin=1")
@@ -141,7 +154,6 @@ def init_db():
         c.executemany("INSERT INTO tracks (id, name, total_length, track_type, sort_order) VALUES (?, ?, ?, ?, ?)", data)
         print("[OK] База данных создана.")
     else:
-        # Убедимся, что у всех путей есть sort_order (для старых БД)
         c.execute("UPDATE tracks SET sort_order = id WHERE sort_order IS NULL OR sort_order = 0")
     conn.commit()
     conn.close()
@@ -277,7 +289,6 @@ def add_track(name, total_length, track_type='normal'):
     conn = get_conn()
     c = conn.cursor()
     try:
-        # Определяем максимальный sort_order
         c.execute("SELECT MAX(sort_order) FROM tracks")
         max_order = c.fetchone()[0] or 0
         c.execute("INSERT INTO tracks (name, total_length, track_type, sort_order) VALUES (?, ?, ?, ?)",
@@ -332,7 +343,6 @@ def delete_track(track_id):
 
 
 def move_track_up(track_id):
-    """Перемещает путь на одну позицию вверх (уменьшает sort_order)."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT sort_order FROM tracks WHERE id = ?", (track_id,))
@@ -341,12 +351,10 @@ def move_track_up(track_id):
         conn.close()
         return False
     current_order = row[0]
-    # Найти предыдущий путь (максимальный sort_order меньше текущего)
     c.execute("SELECT id, sort_order FROM tracks WHERE sort_order < ? ORDER BY sort_order DESC LIMIT 1", (current_order,))
     prev = c.fetchone()
     if prev:
         prev_id, prev_order = prev
-        # Меняем sort_order местами
         c.execute("UPDATE tracks SET sort_order = ? WHERE id = ?", (prev_order, track_id))
         c.execute("UPDATE tracks SET sort_order = ? WHERE id = ?", (current_order, prev_id))
         conn.commit()
@@ -356,7 +364,6 @@ def move_track_up(track_id):
 
 
 def move_track_down(track_id):
-    """Перемещает путь на одну позицию вниз (увеличивает sort_order)."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT sort_order FROM tracks WHERE id = ?", (track_id,))
@@ -365,7 +372,6 @@ def move_track_down(track_id):
         conn.close()
         return False
     current_order = row[0]
-    # Найти следующий путь (минимальный sort_order больше текущего)
     c.execute("SELECT id, sort_order FROM tracks WHERE sort_order > ? ORDER BY sort_order ASC LIMIT 1", (current_order,))
     next_row = c.fetchone()
     if next_row:
@@ -841,6 +847,8 @@ def get_grouped_archive_history():
             action_label = "<span style='color:#27ae60'>Добавлен</span>"
         elif action == 'moved':
             action_label = "<span style='color:#f39c12'>Перемещен</span>"
+        elif action == 'edit':
+            action_label = "<span style='color:#8e44ad'>Изменён</span>"
         else:
             action_label = "<span style='color:#e74c3c'>Убыл</span>"
         grouped[w_num].append({
@@ -870,3 +878,80 @@ def get_grouped_archive_history():
             "count": len(events)
         })
     return result
+
+
+# ==================== NEW: РАСЧЁТ ПЕРЕПРОСТОЯ ====================
+def calculate_overstay(wagon_number):
+    """
+    Возвращает кортеж (перепростой_сутки, сумма_руб).
+    Если перепростоя нет, возвращает (0, 0.0).
+    """
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("""SELECT w.arrival_time, w.departure_time,
+                 (SELECT MAX(timestamp) FROM archived_history WHERE wagon_number = ?) as last_ts
+                 FROM wagons w WHERE w.wagon_number = ? AND w.is_archived = 1""",
+              (wagon_number, wagon_number))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return 0, 0.0
+
+    arrival_str, global_deadline_str, last_ts_str = row
+    if not arrival_str or not last_ts_str:
+        conn.close()
+        return 0, 0.0
+
+    try:
+        arrival_dt = datetime.strptime(arrival_str[:10], '%Y-%m-%d')
+        last_dt = datetime.strptime(last_ts_str[:10], '%Y-%m-%d')
+    except:
+        conn.close()
+        return 0, 0.0
+
+    # Календарные дни (включая день прибытия и день последнего события)
+    calendar_days = (last_dt - arrival_dt).days + 1
+    if calendar_days <= 0:
+        conn.close()
+        return 0, 0.0
+
+    # Разрешённый срок (глобальный) в днях
+    allowed_days = 0
+    if global_deadline_str:
+        try:
+            global_dt = datetime.strptime(global_deadline_str[:10], '%Y-%m-%d')
+            allowed_days = (global_dt - arrival_dt).days
+        except:
+            pass
+    if allowed_days < 0:
+        allowed_days = 0
+
+    overstay = calendar_days - allowed_days
+    if overstay <= 0:
+        conn.close()
+        return 0, 0.0
+
+    # Получаем глобальные настройки ставок
+    progressive = get_setting('overstay_progressive', '0') == '1'
+    if progressive:
+        threshold1 = int(get_setting('overstay_threshold1', '3'))
+        threshold2 = int(get_setting('overstay_threshold2', '7'))
+        rate1 = float(get_setting('overstay_rate1', '1000'))
+        rate2 = float(get_setting('overstay_rate2', '1500'))
+        rate3 = float(get_setting('overstay_rate3', '2000'))
+
+        days1 = min(overstay, threshold1)
+        amount = days1 * rate1
+        remaining = overstay - days1
+        if remaining > 0:
+            days2 = min(remaining, threshold2 - threshold1)
+            amount += days2 * rate2
+            remaining -= days2
+            if remaining > 0:
+                amount += remaining * rate3
+    else:
+        base_rate = float(get_setting('overstay_rate_base', '0'))
+        amount = overstay * base_rate
+
+    conn.close()
+    return overstay, amount

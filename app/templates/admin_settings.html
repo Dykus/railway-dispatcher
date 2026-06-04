@@ -189,6 +189,39 @@
             </div>
         </div>
 
+        <!-- ===== ШТРАФЫ ЗА ПЕРЕПРОСТОЙ ===== -->
+        <div class="settings-section">
+            <h3>💰 Штрафы за перепростой</h3>
+            <div class="form-row">
+                <label>
+                    <input type="checkbox" name="overstay_progressive" value="1" {% if settings.get('overstay_progressive', '0') == '1' %}checked{% endif %}> Прогрессивная ставка
+                </label>
+            </div>
+            <div class="form-row">
+                <label>Базовая ставка (руб/сут):</label>
+                <input type="number" name="overstay_rate_base" value="{{ settings.get('overstay_rate_base', '0') }}" step="0.01" min="0">
+            </div>
+            <div id="progressiveFields" style="display: {% if settings.get('overstay_progressive', '0') == '1' %}block{% else %}none{% endif %};">
+                <div class="form-row">
+                    <label>Порог 1 (сут):</label>
+                    <input type="number" name="overstay_threshold1" value="{{ settings.get('overstay_threshold1', '3') }}" min="1">
+                    <label style="margin-left:20px;">Ставка до порога (руб/сут):</label>
+                    <input type="number" name="overstay_rate1" value="{{ settings.get('overstay_rate1', '1000') }}" step="0.01" min="0">
+                </div>
+                <div class="form-row">
+                    <label>Порог 2 (сут):</label>
+                    <input type="number" name="overstay_threshold2" value="{{ settings.get('overstay_threshold2', '7') }}" min="1">
+                    <label style="margin-left:20px;">Ставка от порога 1 до порога 2 (руб/сут):</label>
+                    <input type="number" name="overstay_rate2" value="{{ settings.get('overstay_rate2', '1500') }}" step="0.01" min="0">
+                </div>
+                <div class="form-row">
+                    <label>Ставка свыше порога 2 (руб/сут):</label>
+                    <input type="number" name="overstay_rate3" value="{{ settings.get('overstay_rate3', '2000') }}" step="0.01" min="0">
+                </div>
+            </div>
+            <div class="hint">Если прогрессивная ставка включена, используются пороговые значения, иначе – базовая ставка.</div>
+        </div>
+
         <!-- ===== ЛОГИРОВАНИЕ ===== -->
         <div class="settings-section">
             <h3>📝 Логирование</h3>
@@ -399,6 +432,16 @@
         })
         .catch(error => {
             alert('Ошибка сети: ' + error);
+        });
+    }
+</script>
+<script>
+    // Переключение видимости прогрессивных полей
+    const progressiveCheckbox = document.querySelector('input[name="overstay_progressive"]');
+    const progressiveFields = document.getElementById('progressiveFields');
+    if (progressiveCheckbox && progressiveFields) {
+        progressiveCheckbox.addEventListener('change', function() {
+            progressiveFields.style.display = this.checked ? 'block' : 'none';
         });
     }
 </script>
