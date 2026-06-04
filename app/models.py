@@ -35,8 +35,14 @@ def init_db():
     
     c.execute('''CREATE TABLE IF NOT EXISTS archived_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    wagon_number TEXT, action_type TEXT, from_track TEXT, to_track TEXT, note TEXT, timestamp TEXT, archived_date TEXT
+                    wagon_number TEXT, action_type TEXT, from_track TEXT, to_track TEXT, note TEXT, timestamp TEXT, archived_date TEXT,
+                    visit_id INTEGER DEFAULT NULL
                 )''')
+    # Добавляем поле visit_id, если его нет
+    try:
+        c.execute("ALTER TABLE archived_history ADD COLUMN visit_id INTEGER DEFAULT NULL")
+    except:
+        pass
 
     c.execute('''CREATE TABLE IF NOT EXISTS tracks (
                     id INTEGER PRIMARY KEY,
@@ -51,6 +57,7 @@ def init_db():
     except:
         pass
     
+    # Старая таблица wagons остаётся для совместимости, но основная работа теперь через wagon_visits
     c.execute('''CREATE TABLE IF NOT EXISTS wagons (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, 
                     wagon_number TEXT UNIQUE, length REAL, cargo_type TEXT, owner TEXT, 
@@ -62,6 +69,24 @@ def init_db():
     for col in ['organization', 'local_departure_time', 'owner', 'visit_count', 'is_archived']:
         try: c.execute(f"ALTER TABLE wagons ADD COLUMN {col} TEXT")
         except: pass
+
+    # Новая таблица визитов
+    c.execute('''CREATE TABLE IF NOT EXISTS wagon_visits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    wagon_number TEXT NOT NULL,
+                    arrival_time TEXT,
+                    departure_time TEXT,
+                    local_departure_time TEXT,
+                    is_archived INTEGER DEFAULT 0,
+                    track_id INTEGER,
+                    start_pos REAL,
+                    cargo_type TEXT,
+                    owner TEXT,
+                    organization TEXT,
+                    length REAL DEFAULT 10.0,
+                    status TEXT DEFAULT 'assigned',
+                    visit_count INTEGER DEFAULT 0
+                )''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS action_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,6 +182,52 @@ def init_db():
         c.execute("UPDATE tracks SET sort_order = id WHERE sort_order IS NULL OR sort_order = 0")
     conn.commit()
     conn.close()
+
+    # Миграция данных в wagon_visits (выполняется один раз)
+    migrate_to_visits()
+
+
+def migrate_to_visits():
+    """Переносит данные из wagons в wagon_visits и обновляет archived_history."""
+    conn = get_conn()
+    c = conn.cursor()
+    # Проверяем, не перенесены ли уже данные
+    c.execute("SELECT COUNT(*) FROM wagon_visits")
+    if c.fetchone()[0] > 0:
+        conn.close()
+        print("[OK] Данные уже перенесены в wagon_visits.")
+        return
+
+    print("[МИГРАЦИЯ] Перенос данных из wagons в wagon_visits...")
+    # Копируем все записи из wagons (и активные, и архивные)
+    c.execute("""
+        INSERT INTO wagon_visits (wagon_number, arrival_time, departure_time, local_departure_time,
+                                 is_archived, track_id, start_pos, cargo_type, owner, organization, length, status, visit_count)
+        SELECT wagon_number, arrival_time, departure_time, local_departure_time,
+               is_archived, track_id, start_pos, cargo_type, owner, organization, length, status, visit_count
+        FROM wagons
+    """)
+    conn.commit()
+    print(f"[МИГРАЦИЯ] Перенесено {c.rowcount} записей.")
+
+    # Теперь для каждой записи в archived_history пытаемся найти соответствующий visit_id
+    print("[МИГРАЦИЯ] Привязка archived_history к визитам...")
+    c.execute("""
+        UPDATE archived_history
+        SET visit_id = (
+            SELECT wv.id FROM wagon_visits wv
+            WHERE wv.wagon_number = archived_history.wagon_number
+              AND wv.is_archived = 1
+              AND wv.arrival_time <= archived_history.timestamp
+            ORDER BY wv.arrival_time DESC
+            LIMIT 1
+        )
+        WHERE visit_id IS NULL
+    """)
+    conn.commit()
+    print(f"[МИГРАЦИЯ] Обновлено {c.rowcount} записей в archived_history.")
+    conn.close()
+    print("[МИГРАЦИЯ] Готово.")
 
 
 # ===== ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ =====
@@ -326,7 +397,7 @@ def update_track(track_id, name, total_length, track_type):
 def delete_track(track_id):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM wagons WHERE track_id = ? AND is_archived = 0", (track_id,))
+    c.execute("SELECT COUNT(*) FROM wagon_visits WHERE track_id = ? AND is_archived = 0", (track_id,))
     count = c.fetchone()[0]
     if count > 0:
         conn.close()
@@ -393,7 +464,7 @@ def get_last_event_datetime(wagon_number):
     if row:
         conn.close()
         return datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S')
-    c.execute("SELECT arrival_time FROM wagons WHERE wagon_number = ? AND is_archived = 0", (wagon_number,))
+    c.execute("SELECT arrival_time FROM wagon_visits WHERE wagon_number = ? AND is_archived = 0", (wagon_number,))
     row = c.fetchone()
     conn.close()
     if row and row[0]:
@@ -415,13 +486,13 @@ def log_movement(wagon_number, action_type, from_track_name=None, to_track_name=
 def compact_track(track_id):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, length FROM wagons WHERE track_id = ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos ASC", (track_id,))
+    c.execute("SELECT id, length FROM wagon_visits WHERE track_id = ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos ASC", (track_id,))
     wagons = c.fetchall()
     current_pos = 0.0
     spacing = float(get_setting('wagon_spacing', '50.0'))
     for wag_id, wag_len in wagons:
         w_len = float(wag_len) if wag_len is not None else 10.0
-        c.execute("UPDATE wagons SET start_pos = ? WHERE id = ?", (current_pos, wag_id))
+        c.execute("UPDATE wagon_visits SET start_pos = ? WHERE id = ?", (current_pos, wag_id))
         current_pos += w_len + spacing
     conn.commit()
     conn.close()
@@ -435,7 +506,7 @@ def find_slot_on_track(track_id, wagon_length):
     if not res: 
         conn.close()
         return None, 0.0
-    c.execute("SELECT start_pos, length FROM wagons WHERE track_id = ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos", (track_id,))
+    c.execute("SELECT start_pos, length FROM wagon_visits WHERE track_id = ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos", (track_id,))
     occupied = c.fetchall()
     spacing = float(get_setting('wagon_spacing', '50.0'))
     if not occupied: 
@@ -452,7 +523,7 @@ def find_slot_on_track(track_id, wagon_length):
 def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0, manual_start_str=None, new_note=None):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT wagon_number, owner, organization, departure_time, track_id, cargo_type, visit_count, arrival_time FROM wagons WHERE id = ? AND is_archived = 0", (wagon_id,))
+    c.execute("SELECT wagon_number, owner, organization, departure_time, track_id, cargo_type, visit_count, arrival_time FROM wagon_visits WHERE id = ? AND is_archived = 0", (wagon_id,))
     res = c.fetchone()
     if not res: 
         conn.close()
@@ -514,7 +585,7 @@ def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0
     
     update_note = clean_note_for_db(new_note) if (new_note and new_note.strip()) else clean_note_for_db(current_note)
     
-    c.execute("""UPDATE wagons SET track_id = ?, start_pos = ?, local_departure_time = ?, cargo_type = ?, visit_count = ? WHERE id = ?""", 
+    c.execute("""UPDATE wagon_visits SET track_id = ?, start_pos = ?, local_departure_time = ?, cargo_type = ?, visit_count = ? WHERE id = ?""", 
               (target_track, new_pos, new_local_dep_time, update_note, new_visit_count, wagon_id))
     
     conn.commit()
@@ -524,10 +595,10 @@ def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0
     return True, "Вагон перемещен!"
 
 
-def depart_wagon(wagon_id):
+def depart_wagon(visit_id):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT wagon_number, track_id FROM wagons WHERE id = ? AND is_archived = 0", (wagon_id,))
+    c.execute("SELECT wagon_number, track_id FROM wagon_visits WHERE id = ? AND is_archived = 0", (visit_id,))
     res = c.fetchone()
     if res:
         w_num, track_id = res
@@ -536,12 +607,14 @@ def depart_wagon(wagon_id):
         track_name = track_name_res[0] if track_name_res else "Неизвестный путь"
         archived_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        c.execute("""INSERT INTO archived_history (wagon_number, action_type, from_track, to_track, note, timestamp, archived_date) 
-                     SELECT wagon_number, action_type, from_track, to_track, note, timestamp, ? FROM movement_history WHERE wagon_number = ?""", 
-                  (archived_date, w_num))
-        
+        # Переносим историю конкретного визита в архив
+        c.execute("""INSERT INTO archived_history (wagon_number, action_type, from_track, to_track, note, timestamp, archived_date, visit_id) 
+                     SELECT wagon_number, action_type, from_track, to_track, note, timestamp, ?, ? FROM movement_history WHERE wagon_number = ?""", 
+                  (archived_date, visit_id, w_num))
+        # Удаляем перемещения этого вагона из активной истории
         c.execute("DELETE FROM movement_history WHERE wagon_number = ?", (w_num,))
-        c.execute("UPDATE wagons SET status = 'departed', is_archived = 1 WHERE id = ?", (wagon_id,))
+        # Помечаем визит как архивный
+        c.execute("UPDATE wagon_visits SET status = 'departed', is_archived = 1 WHERE id = ?", (visit_id,))
         
         conn.commit()
         conn.close()
@@ -549,8 +622,8 @@ def depart_wagon(wagon_id):
         
         conn_arch = get_conn()
         c_arch = conn_arch.cursor()
-        c_arch.execute("""INSERT INTO archived_history (wagon_number, action_type, from_track, to_track, note, timestamp, archived_date) VALUES (?, ?, ?, ?, ?, ?, ?)""", 
-                       (w_num, 'departed', track_name, None, "Убран в архив", archived_date, archived_date))
+        c_arch.execute("""INSERT INTO archived_history (wagon_number, action_type, from_track, to_track, note, timestamp, archived_date, visit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", 
+                       (w_num, 'departed', track_name, None, "Убран в архив", archived_date, archived_date, visit_id))
         conn_arch.commit()
         conn_arch.close()
         log_action('depart', wagon_number=w_num, details=f"Убран в архив с пути {track_name}")
@@ -558,11 +631,13 @@ def depart_wagon(wagon_id):
     return False
 
 
-def edit_wagon(wagon_id, new_owner=None, new_org=None, new_note=None,
+def edit_wagon(visit_id, new_owner=None, new_org=None, new_note=None,
                new_arrival_time=None, new_global_deadline=None, new_local_deadline=None):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT wagon_number, owner, organization, cargo_type, arrival_time, departure_time, local_departure_time, track_id FROM wagons WHERE id = ? AND is_archived = 0", (wagon_id,))
+    c.execute("""SELECT wagon_number, owner, organization, cargo_type, arrival_time, 
+                 departure_time, local_departure_time, track_id
+                 FROM wagon_visits WHERE id = ? AND is_archived = 0""", (visit_id,))
     row = c.fetchone()
     if not row:
         conn.close()
@@ -651,8 +726,8 @@ def edit_wagon(wagon_id, new_owner=None, new_org=None, new_note=None,
         conn.close()
         return True, "Нет изменений"
     
-    query = "UPDATE wagons SET " + ", ".join(updates) + " WHERE id = ?"
-    params.append(wagon_id)
+    query = "UPDATE wagon_visits SET " + ", ".join(updates) + " WHERE id = ?"
+    params.append(visit_id)
     c.execute(query, params)
     conn.commit()
     conn.close()
@@ -669,11 +744,12 @@ def get_dashboard_data():
     c = conn.cursor()
     c.execute("SELECT id, name, total_length, track_type FROM tracks ORDER BY sort_order ASC")
     tracks_raw = c.fetchall()
-    c.execute("""SELECT w.id, w.wagon_number, w.length, w.cargo_type, w.owner, w.organization, w.track_id, w.start_pos, w.arrival_time, w.departure_time, w.local_departure_time, t.name, w.visit_count 
-                 FROM wagons w 
-                 JOIN tracks t ON w.track_id = t.id 
-                 WHERE w.status != 'departed' AND w.is_archived = 0 
-                 ORDER BY t.sort_order ASC, w.start_pos ASC""")
+    # Теперь используем wagon_visits вместо wagons
+    c.execute("""SELECT wv.id, wv.wagon_number, wv.length, wv.cargo_type, wv.owner, wv.organization, wv.track_id, wv.start_pos, wv.arrival_time, wv.departure_time, wv.local_departure_time, t.name, wv.visit_count 
+                 FROM wagon_visits wv 
+                 JOIN tracks t ON wv.track_id = t.id 
+                 WHERE wv.status != 'departed' AND wv.is_archived = 0 
+                 ORDER BY t.sort_order ASC, wv.start_pos ASC""")
     all_wagons_raw = c.fetchall()
     conn.close()
     
@@ -782,9 +858,9 @@ def get_dashboard_data():
 def get_grouped_history():
     conn = get_conn()
     c = conn.cursor()
-    c.execute("""SELECT m.id, m.wagon_number, m.action_type, m.from_track, m.to_track, m.note, m.timestamp, w.owner, w.organization, w.cargo_type 
+    c.execute("""SELECT m.id, m.wagon_number, m.action_type, m.from_track, m.to_track, m.note, m.timestamp, wv.owner, wv.organization, wv.cargo_type 
                  FROM movement_history m 
-                 LEFT JOIN wagons w ON m.wagon_number = w.wagon_number 
+                 LEFT JOIN wagon_visits wv ON m.wagon_number = wv.wagon_number AND wv.is_archived = 0
                  ORDER BY m.wagon_number, m.timestamp ASC""")
     rows = c.fetchall()
     conn.close()
@@ -834,9 +910,11 @@ def get_grouped_history():
 def get_grouped_archive_history():
     conn = get_conn()
     c = conn.cursor()
-    c.execute("""SELECT a.wagon_number, a.action_type, a.from_track, a.to_track, a.note, a.timestamp, w.owner, w.organization, w.cargo_type 
+    # Группируем по номеру вагона, но внутри каждой группы могут быть разные visit_id
+    # Для отображения в архиве нам нужны все записи, отсортированные по времени
+    c.execute("""SELECT a.wagon_number, a.action_type, a.from_track, a.to_track, a.note, a.timestamp, wv.owner, wv.organization, wv.cargo_type 
                  FROM archived_history a 
-                 LEFT JOIN wagons w ON a.wagon_number = w.wagon_number 
+                 LEFT JOIN wagon_visits wv ON a.visit_id = wv.id
                  ORDER BY a.wagon_number, a.timestamp ASC""")
     rows = c.fetchall()
     conn.close()
@@ -880,18 +958,18 @@ def get_grouped_archive_history():
     return result
 
 
-# ==================== NEW: РАСЧЁТ ПЕРЕПРОСТОЯ ====================
-def calculate_overstay(wagon_number):
+# ==================== РАСЧЁТ ПЕРЕПРОСТОЯ (ПО ВИЗИТУ) ====================
+def calculate_overstay(visit_id):
     """
-    Возвращает кортеж (перепростой_сутки, сумма_руб).
+    Возвращает кортеж (перепростой_сутки, сумма_руб) для конкретного визита.
     Если перепростоя нет, возвращает (0, 0.0).
     """
     conn = get_conn()
     c = conn.cursor()
-    c.execute("""SELECT w.arrival_time, w.departure_time,
-                 (SELECT MAX(timestamp) FROM archived_history WHERE wagon_number = ?) as last_ts
-                 FROM wagons w WHERE w.wagon_number = ? AND w.is_archived = 1""",
-              (wagon_number, wagon_number))
+    c.execute("""SELECT arrival_time, departure_time,
+                 (SELECT MAX(timestamp) FROM archived_history WHERE visit_id = ?) as last_ts
+                 FROM wagon_visits WHERE id = ? AND is_archived = 1""",
+              (visit_id, visit_id))
     row = c.fetchone()
     if not row:
         conn.close()
@@ -909,13 +987,11 @@ def calculate_overstay(wagon_number):
         conn.close()
         return 0, 0.0
 
-    # Календарные дни (включая день прибытия и день последнего события)
     calendar_days = (last_dt - arrival_dt).days + 1
     if calendar_days <= 0:
         conn.close()
         return 0, 0.0
 
-    # Разрешённый срок (глобальный) в днях
     allowed_days = 0
     if global_deadline_str:
         try:
@@ -931,7 +1007,6 @@ def calculate_overstay(wagon_number):
         conn.close()
         return 0, 0.0
 
-    # Получаем глобальные настройки ставок
     progressive = get_setting('overstay_progressive', '0') == '1'
     if progressive:
         threshold1 = int(get_setting('overstay_threshold1', '3'))

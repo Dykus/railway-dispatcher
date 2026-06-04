@@ -46,7 +46,11 @@ def app():
     yield flask_app
 
     # Убираем временные файлы после теста
-    os.unlink(temp_db_path)
+    try:
+        os.unlink(temp_db_path)
+    except PermissionError:
+        # Если файл занят, просто пропускаем
+        pass
     import shutil
     shutil.rmtree(temp_backup_dir, ignore_errors=True)
 
@@ -87,17 +91,18 @@ def test_add_wagon_success(client):
     assert 'Вагон 12345678 добавлен' in page_text, "Нет сообщения 'Вагон 12345678 добавлен' на главной"
     print("    ✓ Сообщение об успехе найдено")
 
-    print("  Шаг 4: Убеждаемся, что вагон появился в базе данных...")
+    print("  Шаг 4: Убеждаемся, что вагон появился в базе данных (wagon_visits)...")
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM wagons WHERE wagon_number = '12345678'")
+    c.execute("SELECT * FROM wagon_visits WHERE wagon_number = '12345678'")
     row = c.fetchone()
     conn.close()
     
     assert row is not None, "Вагон не найден в БД"
-    assert row[4] == 'ОАО РЖД', f"Владелец не совпадает: ожидалось ОАО РЖД, получено {row[4]}"
-    assert row[7] == 1, f"ID пути не совпадает: ожидался 1, получено {row[7]}"
+    assert row[1] == '12345678'  # wagon_number
+    assert row[9] == 'ОАО РЖД'  # owner
+    assert row[6] == 1          # track_id
     print("    ✓ Вагон успешно записан в базу")
     print("🏁 Тест завершён успешно\n")
 
@@ -119,7 +124,7 @@ def test_move_wagon_and_local_deadline(client):
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id FROM wagons WHERE wagon_number = '99999999'")
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = '99999999'")
     wagon_id = c.fetchone()[0]
     conn.close()
     print(f"    Вагон добавлен, его ID = {wagon_id}")
@@ -142,7 +147,7 @@ def test_move_wagon_and_local_deadline(client):
     print("  Шаг 3: Проверяем изменения в базе...")
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT track_id, local_departure_time, visit_count FROM wagons WHERE id = ?", (wagon_id,))
+    c.execute("SELECT track_id, local_departure_time, visit_count FROM wagon_visits WHERE id = ?", (wagon_id,))
     row = c.fetchone()
     conn.close()
     
@@ -199,9 +204,9 @@ def test_depart_and_compact_track(client):
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, start_pos FROM wagons WHERE wagon_number = 'DEP001'")
+    c.execute("SELECT id, start_pos FROM wagon_visits WHERE wagon_number = 'DEP001'")
     dep001 = c.fetchone()
-    c.execute("SELECT id, start_pos FROM wagons WHERE wagon_number = 'DEP002'")
+    c.execute("SELECT id, start_pos FROM wagon_visits WHERE wagon_number = 'DEP002'")
     dep002 = c.fetchone()
     conn.close()
     
@@ -217,7 +222,7 @@ def test_depart_and_compact_track(client):
     print("  Шаг 3: Проверяем, что DEP002 сдвинулся на позицию 0...")
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT start_pos FROM wagons WHERE id = ?", (dep002[0],))
+    c.execute("SELECT start_pos FROM wagon_visits WHERE id = ?", (dep002[0],))
     new_pos = c.fetchone()[0]
     conn.close()
     
@@ -238,7 +243,7 @@ def test_restore_from_archive(client):
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id FROM wagons WHERE wagon_number = 'RESTORE1'")
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = 'RESTORE1'")
     wagon_id = c.fetchone()[0]
     conn.close()
     client.post(f'/depart/{wagon_id}')
@@ -251,19 +256,18 @@ def test_restore_from_archive(client):
     }, follow_redirects=True)
     
     assert response.status_code == 200
-    assert 'восстановлен' in response.data.decode('utf-8'), "Нет сообщения о восстановлении"
-    print("    ✓ Сообщение о восстановлении найдено")
+    # При новом добавлении вагон не восстанавливается, а создаётся новый визит
+    assert 'добавлен' in response.data.decode('utf-8'), "Нет сообщения о добавлении"
+    print("    ✓ Вагон добавлен как новый визит")
 
-    print("  Шаг 3: Проверяем, что вагон снова активен и данные обновлены...")
+    print("  Шаг 3: Проверяем, что оба визита существуют...")
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT is_archived, owner FROM wagons WHERE wagon_number = 'RESTORE1'")
-    row = c.fetchone()
+    c.execute("SELECT COUNT(*) FROM wagon_visits WHERE wagon_number = 'RESTORE1'")
+    count = c.fetchone()[0]
     conn.close()
-    
-    assert row[0] == 0, "Вагон должен быть не в архиве"
-    assert row[1] == 'Новая ТК', f"Владелец должен быть 'Новая ТК', а равен '{row[1]}'"
-    print(f"    ✓ Вагон активен, владелец изменён на '{row[1]}'")
+    assert count == 2, f"Должно быть 2 визита, а найдено {count}"
+    print(f"    ✓ Найдено {count} визита")
     print("🏁 Тест завершён успешно\n")
 
 
@@ -305,9 +309,9 @@ def test_compact_on_all_tracks(client):
         
         conn = get_conn()
         c = conn.cursor()
-        c.execute("SELECT id, start_pos FROM wagons WHERE wagon_number = ?", (num1,))
+        c.execute("SELECT id, start_pos FROM wagon_visits WHERE wagon_number = ?", (num1,))
         row1 = c.fetchone()
-        c.execute("SELECT id, start_pos FROM wagons WHERE wagon_number = ?", (num2,))
+        c.execute("SELECT id, start_pos FROM wagon_visits WHERE wagon_number = ?", (num2,))
         row2 = c.fetchone()
         conn.close()
         
@@ -326,7 +330,7 @@ def test_compact_on_all_tracks(client):
         print(f"    Шаг 3: Проверяем позицию {num2}...")
         conn = get_conn()
         c = conn.cursor()
-        c.execute("SELECT start_pos FROM wagons WHERE id = ?", (row2[0],))
+        c.execute("SELECT start_pos FROM wagon_visits WHERE id = ?", (row2[0],))
         new_pos = c.fetchone()[0]
         conn.close()
         
@@ -363,9 +367,9 @@ def test_move_compacts_old_track(client):
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, start_pos FROM wagons WHERE wagon_number = 'MOVE1'")
+    c.execute("SELECT id, start_pos FROM wagon_visits WHERE wagon_number = 'MOVE1'")
     move1 = c.fetchone()
-    c.execute("SELECT id, start_pos FROM wagons WHERE wagon_number = 'MOVE2'")
+    c.execute("SELECT id, start_pos FROM wagon_visits WHERE wagon_number = 'MOVE2'")
     move2 = c.fetchone()
     conn.close()
     
@@ -387,7 +391,7 @@ def test_move_compacts_old_track(client):
     print("  Шаг 3: Проверяем позицию MOVE2 на старом пути...")
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT start_pos FROM wagons WHERE id = ?", (move2[0],))
+    c.execute("SELECT start_pos FROM wagon_visits WHERE id = ?", (move2[0],))
     new_pos = c.fetchone()[0]
     conn.close()
     
@@ -416,7 +420,7 @@ def test_move_middle_wagon_repositions_others(client):
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT wagon_number, start_pos FROM wagons WHERE track_id = ? ORDER BY start_pos", (SOURCE_TRACK,))
+    c.execute("SELECT wagon_number, start_pos FROM wagon_visits WHERE track_id = ? ORDER BY start_pos", (SOURCE_TRACK,))
     rows = c.fetchall()
     conn.close()
     positions = {row[0]: row[1] for row in rows}
@@ -428,7 +432,7 @@ def test_move_middle_wagon_repositions_others(client):
     print("  Шаг 2: Перемещаем средний вагон WAG2 на другой путь...")
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id FROM wagons WHERE wagon_number = 'WAG2'")
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = 'WAG2'")
     w2_id = c.fetchone()[0]
     conn.close()
 
@@ -445,7 +449,7 @@ def test_move_middle_wagon_repositions_others(client):
     print("  Шаг 3: Проверяем позиции оставшихся вагонов на старом пути...")
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT wagon_number, start_pos FROM wagons WHERE track_id = ? ORDER BY start_pos", (SOURCE_TRACK,))
+    c.execute("SELECT wagon_number, start_pos FROM wagon_visits WHERE track_id = ? ORDER BY start_pos", (SOURCE_TRACK,))
     rows = c.fetchall()
     conn.close()
     new_positions = {row[0]: row[1] for row in rows}
@@ -473,7 +477,7 @@ def test_local_deadline_cannot_start_before_arrival(client):
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id FROM wagons WHERE wagon_number = 'PROTECT1'")
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = 'PROTECT1'")
     wagon_id = c.fetchone()[0]
     conn.close()
 
@@ -541,7 +545,7 @@ def test_export_individual_wagon_history(client):
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id FROM wagons WHERE wagon_number = 'EXHIST'")
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = 'EXHIST'")
     w_id = c.fetchone()[0]
     conn.close()
     client.post('/move', data={
@@ -644,7 +648,7 @@ def test_restore_backup_reverts_database(client):
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM wagons WHERE is_archived=0")
+    c.execute("SELECT COUNT(*) FROM wagon_visits WHERE is_archived=0")
     count_before = c.fetchone()[0]
     conn.close()
     print(f"    Вагонов до восстановления: {count_before}")
@@ -662,7 +666,7 @@ def test_restore_backup_reverts_database(client):
     print("  Шаг 5: Проверяем состояние базы...")
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT wagon_number FROM wagons WHERE is_archived=0")
+    c.execute("SELECT wagon_number FROM wagon_visits WHERE is_archived=0")
     wagons = [row[0] for row in c.fetchall()]
     conn.close()
     print(f"    Активные вагоны: {wagons}")
@@ -731,11 +735,7 @@ def test_add_and_delete_track_via_settings(client):
         'track_type': 'normal'
     }, follow_redirects=True)
     assert resp.status_code == 200
-    resp_text = resp.data.decode('utf-8')
-    # Проверяем наличие имени пути и слова "добавлен", игнорируя возможное экранирование кавычек
-    assert 'Тестовый путь' in resp_text and 'добавлен' in resp_text, (
-        f"Нет сообщения об успешном добавлении пути. Ответ: {resp_text[:500]}"
-    )
+    assert 'Тестовый путь' in resp.data.decode('utf-8') and 'добавлен' in resp.data.decode('utf-8')
     print("    ✓ Путь добавлен")
 
     from app.models import get_conn
@@ -754,8 +754,7 @@ def test_add_and_delete_track_via_settings(client):
         'track_id': str(track_id)
     }, follow_redirects=True)
     assert resp.status_code == 200
-    resp_text = resp.data.decode('utf-8')
-    assert 'Путь удалён' in resp_text, f"Нет сообщения об удалении пути: {resp_text[:500]}"
+    assert 'Путь удалён' in resp.data.decode('utf-8')
     print("    ✓ Путь удалён")
 
     conn = get_conn()
@@ -764,13 +763,14 @@ def test_add_and_delete_track_via_settings(client):
     assert c.fetchone() is None, "Путь остался в БД"
     conn.close()
     print("🏁 Тест завершён успешно\n")
+
+
 def test_reorder_tracks_via_save_order(client):
     """Сохранение порядка путей через API должно менять sort_order."""
     print("🚀 Запуск теста: изменение порядка путей")
 
     from app.models import get_conn
 
-    # 1. Запоминаем текущий порядок путей
     print("  Шаг 1: Запоминаем текущий порядок путей...")
     conn = get_conn()
     c = conn.cursor()
@@ -779,9 +779,7 @@ def test_reorder_tracks_via_save_order(client):
     conn.close()
     print(f"    Исходный порядок: {[(t[0], t[1]) for t in original]}")
 
-    # 2. Меняем порядок: ставим путь 2 на место 1 и наоборот
     new_order = [t[0] for t in original]
-    # Меняем первые два пути местами
     new_order[0], new_order[1] = new_order[1], new_order[0]
     print(f"    Новый порядок: {new_order}")
 
@@ -794,7 +792,6 @@ def test_reorder_tracks_via_save_order(client):
     assert result.get('success') is True, f"Сохранение не удалось: {result}"
     print("    ✓ Порядок сохранён")
 
-    # 3. Проверяем, что в БД порядок действительно изменился
     print("  Шаг 3: Проверяем sort_order в БД...")
     conn = get_conn()
     c = conn.cursor()
@@ -804,7 +801,6 @@ def test_reorder_tracks_via_save_order(client):
     conn.close()
     print(f"    Обновлённый порядок: {updated}")
 
-    # Путь, который был вторым, теперь должен быть первым (sort_order = 1)
     assert updated[0][0] == original[1][0], (
         f"Ожидался путь {original[1][0]} на первой позиции, а получен {updated[0][0]}"
     )
@@ -813,7 +809,6 @@ def test_reorder_tracks_via_save_order(client):
     )
     print("    ✓ Порядок путей успешно изменён")
 
-    # 4. Проверяем, что viewer не может менять порядок
     print("  Шаг 4: Проверяем, что viewer не может менять порядок...")
     from app.models import get_conn
     conn = get_conn()
@@ -831,13 +826,14 @@ def test_reorder_tracks_via_save_order(client):
     print("    ✓ Доступ запрещён (403)")
 
     print("🏁 Тест завершён успешно\n")
+
+
 def test_rename_track_via_settings(client):
     """Администратор может переименовать путь через настройки."""
     print("🚀 Запуск теста: переименование пути")
 
     from app.models import get_conn
 
-    # 1. Получаем ID первого пути
     print("  Шаг 1: Находим тестовый путь для переименования...")
     conn = get_conn()
     c = conn.cursor()
@@ -846,7 +842,6 @@ def test_rename_track_via_settings(client):
     conn.close()
     print(f"    Будем менять путь #{track_id} '{old_name}'")
 
-    # 2. Переименовываем
     new_name = old_name + " (переименован)"
     new_length = "750.0"
     print(f"  Шаг 2: Переименовываем в '{new_name}', длина {new_length}...")
@@ -859,15 +854,11 @@ def test_rename_track_via_settings(client):
     }, follow_redirects=True)
     assert resp.status_code == 200
     resp_text = resp.data.decode('utf-8')
-    # Проверяем любое сообщение об успешном изменении пути
-    assert ('обновлён' in resp_text or 'изменён' in resp_text or 
-            f"Путь &#39;{new_name}&#39; обновлён" in resp_text or
-            'Путь' in resp_text), (
+    assert (new_name in resp_text or 'обновлён' in resp_text or 'изменён' in resp_text or 'Путь' in resp_text), (
         f"Нет сообщения об обновлении пути. Ответ: {resp_text[:500]}"
     )
     print("    ✓ Путь обновлён")
 
-    # 3. Проверяем в БД
     print("  Шаг 3: Проверяем изменения в базе...")
     conn = get_conn()
     c = conn.cursor()
@@ -878,7 +869,6 @@ def test_rename_track_via_settings(client):
     assert float(length) == 750.0, f"Длина не обновилась: ожидалось 750.0, получено {length}"
     print(f"    ✓ Имя: '{name}', длина: {length}")
 
-    # 4. Проверяем, что viewer не может переименовать
     print("  Шаг 4: Проверяем, что viewer не может переименовать путь...")
     conn = get_conn()
     c = conn.cursor()

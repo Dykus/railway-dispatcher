@@ -1,3 +1,4 @@
+# app/routes/main.py
 # -*- coding: utf-8 -*-
 """
 Основные маршруты: главная страница, добавление, перемещение, архивация, справка, о программе.
@@ -129,10 +130,26 @@ def add_wagon():
                                version=APP_VERSION,
                                refresh_interval=refresh_interval)
 
+    # Проверяем, нет ли уже активного визита с таким номером
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, status, is_archived FROM wagons WHERE wagon_number = ?", (number,))
-    existing = c.fetchone()
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND is_archived = 0", (number,))
+    if c.fetchone():
+        conn.close()
+        flash(f"⚠️ Вагон '{number}' уже на путях!", 'error')
+        tracks, move_list = get_dashboard_data()
+        is_admin = (request.user_role == 'admin')
+        refresh_interval = int(get_setting('refresh_interval', '5'))
+        return render_template('index.html',
+                               tracks=tracks,
+                               move_list=move_list,
+                               total_wagons=len(move_list),
+                               add_form_data=add_form_data,
+                               move_form_data=None,
+                               request=request,
+                               is_admin=is_admin,
+                               version=APP_VERSION,
+                               refresh_interval=refresh_interval)
 
     try:
         days = int(cycle_days) if cycle_days else 0
@@ -181,42 +198,13 @@ def add_wagon():
         else:
             global_dep = (datetime.now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
 
-    if existing:
-        w_id, w_status, w_archived = existing
-        if w_archived == 1:
-            compact_track(track_id)
-            wagon_len = float(get_setting('default_wagon_length', '10.0'))
-            pos = find_slot_on_track(track_id, wagon_len)[1]
-            c.execute("""UPDATE wagons SET status = 'assigned', owner = ?, organization = ?, cargo_type = ?, track_id = ?, start_pos = ?, arrival_time = ?, departure_time = ?, local_departure_time = NULL, visit_count = 0, is_archived = 0 WHERE id = ?""",
-                      (owner, org, note, track_id, float(pos), arrival_time, global_dep, w_id))
-            conn.commit()
-            conn.close()
-            log_movement(number, 'added', None, None, f"Восстановлен из архива. ТК: {owner}, Орг: {org}", arrival_time)
-            log_action('add', wagon_number=number, details=f"Восстановлен из архива на путь {track_id_str}")
-            flash(f"✅ Вагон {number} восстановлен с временем прибытия {arrival_time[:16]}.", 'success')
-            return redirect(url_for('main.index'))
-        elif w_status != 'departed':
-            conn.close()
-            flash(f"⚠️ Вагон '{number}' уже на путях!", 'error')
-            tracks, move_list = get_dashboard_data()
-            is_admin = (request.user_role == 'admin')
-            refresh_interval = int(get_setting('refresh_interval', '5'))
-            return render_template('index.html',
-                                   tracks=tracks,
-                                   move_list=move_list,
-                                   total_wagons=len(move_list),
-                                   add_form_data=add_form_data,
-                                   move_form_data=None,
-                                   request=request,
-                                   is_admin=is_admin,
-                                   version=APP_VERSION,
-                                   refresh_interval=refresh_interval)
-
+    # Всегда создаём новый визит
     compact_track(track_id)
     wagon_len = float(get_setting('default_wagon_length', '10.0'))
     pos = find_slot_on_track(track_id, wagon_len)[1]
     try:
-        c.execute("""INSERT INTO wagons (wagon_number, length, cargo_type, owner, organization, track_id, start_pos, arrival_time, departure_time, local_departure_time, visit_count, is_archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)""",
+        c.execute("""INSERT INTO wagon_visits (wagon_number, length, cargo_type, owner, organization, track_id, start_pos, arrival_time, departure_time, local_departure_time, visit_count, is_archived)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)""",
                   (number, wagon_len, note, owner, org, track_id, float(pos), arrival_time, global_dep, None))
         conn.commit()
         t_name = c.execute("SELECT name FROM tracks WHERE id=?", (track_id,)).fetchone()[0]
@@ -231,7 +219,7 @@ def add_wagon():
         flash(msg, 'success')
     except sqlite3.IntegrityError:
         conn.close()
-        flash(f"⚠️ Вагон '{number}' уже существует.", 'error')
+        flash(f"⚠️ Ошибка базы данных.", 'error')
         tracks, move_list = get_dashboard_data()
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
@@ -327,12 +315,11 @@ def move_action():
                                version=APP_VERSION,
                                refresh_interval=refresh_interval)
 
-    # --- Сохраняем старый путь ДО перемещения ---
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT track_id FROM wagons WHERE id = ?", (wagon_id,))
-    old_track = c.fetchone()
-    old_track_id = old_track[0] if old_track else None
+    c.execute("SELECT track_id FROM wagon_visits WHERE id = ?", (wagon_id,))
+    old_track_row = c.fetchone()
+    old_track_id = old_track_row[0] if old_track_row else None
     conn.close()
 
     manual_start = None
@@ -341,7 +328,6 @@ def move_action():
 
     success, msg = move_wagon(wagon_id, new_track_id, l_days, l_hours, l_mins, manual_start, note)
     if success:
-        # --- Уплотняем СТАРЫЙ путь после перемещения ---
         if old_track_id is not None:
             compact_track(old_track_id)
         flash(msg, 'success')
@@ -365,33 +351,9 @@ def move_action():
 
 @main_bp.route('/depart/<int:wagon_id>', methods=['POST'])
 def depart_action(wagon_id):
-    conn = get_conn()
-    c = conn.cursor()
-    
-    # 1. Узнаем, на каком пути был вагон, чтобы уплотнить именно этот путь
-    c.execute("SELECT track_id, wagon_number FROM wagons WHERE id = ?", (wagon_id,))
-    row = c.fetchone()
-    
-    if row:
-        track_id, wagon_number = row
-        
-        # 2. Выполняем удаление (архивацию)
-        if depart_wagon(wagon_id):
-            # 3. ВАЖНО: Уплотняем путь после удаления вагона
-            compact_track(track_id)
-            
-            conn.commit()
-            conn.close()
-            
-            log_movement(wagon_number, 'departed', None, None, "Убыл со станции", datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            log_action('depart', wagon_number=wagon_number, details=f"Убыл со станции")
-            
-            flash("✅ Вагон убран в архив.", 'success')
-        else:
-            conn.close()
-            flash("⚠️ Ошибка при удалении.", 'error')
+    # wagon_id теперь visit_id
+    if depart_wagon(wagon_id):
+        flash("✅ Вагон убран в архив.", 'success')
     else:
-        conn.close()
-        flash("⚠️ Вагон не найден.", 'error')
-        
+        flash("⚠️ Ошибка при удалении.", 'error')
     return redirect(url_for('main.index'))
