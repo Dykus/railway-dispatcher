@@ -4,7 +4,7 @@
 Маршруты для экспорта данных в Excel.
 """
 
-from flask import Blueprint, send_file, flash, redirect, url_for
+from flask import Blueprint, send_file, flash, redirect, url_for, request
 import io
 import pandas as pd
 from datetime import datetime
@@ -120,10 +120,16 @@ def export_history_excel():
 
 @export_bp.route('/export_archive_excel')
 def export_archive_excel():
-    """Сводка и детализация по архиву с перепростоем и суммой."""
+    """Сводка и детализация по архиву с фильтрацией по датам."""
     conn = get_conn()
-    # Три колонки времени: прибытие, глобальный срок, фактическое убытие
-    df_summary = pd.read_sql_query("""
+
+    filter_type = request.args.get('filter_type', 'all')
+    year = request.args.get('year', '')
+    month = request.args.get('month', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+
+    sql_summary = """
         SELECT 
             w.wagon_number as "Номер вагона", 
             w.owner as "Транспортная компания", 
@@ -133,20 +139,44 @@ def export_archive_excel():
             (SELECT MAX(timestamp) FROM archived_history WHERE wagon_number = w.wagon_number) as "Фактическое убытие"
         FROM wagons w 
         WHERE w.is_archived = 1
-        ORDER BY w.wagon_number
-    """, conn)
-
-    df_details = pd.read_sql_query("""
+    """
+    sql_details = """
         SELECT 
-            wagon_number as "Номер вагона", 
-            action_type as "Тип действия", 
-            from_track as "Откуда", 
-            to_track as "Куда", 
-            note as "Примечание", 
-            timestamp as "Время"
-        FROM archived_history
-        ORDER BY wagon_number, timestamp ASC
-    """, conn)
+            a.wagon_number as "Номер вагона", 
+            a.action_type as "Тип действия", 
+            a.from_track as "Откуда", 
+            a.to_track as "Куда", 
+            a.note as "Примечание", 
+            a.timestamp as "Время"
+        FROM archived_history a
+        WHERE a.wagon_number IN (SELECT wagon_number FROM wagons WHERE is_archived = 1)
+    """
+
+    params_summary = []
+    params_details = []
+
+    if filter_type == 'year' and year:
+        sql_summary += " AND substr(w.arrival_time, 1, 4) = ?"
+        params_summary.append(year)
+        sql_details += " AND a.wagon_number IN (SELECT wagon_number FROM wagons WHERE is_archived = 1 AND substr(arrival_time, 1, 4) = ?)"
+        params_details.append(year)
+    elif filter_type == 'month' and year and month:
+        period = f"{year}-{month}"
+        sql_summary += " AND substr(w.arrival_time, 1, 7) = ?"
+        params_summary.append(period)
+        sql_details += " AND a.wagon_number IN (SELECT wagon_number FROM wagons WHERE is_archived = 1 AND substr(arrival_time, 1, 7) = ?)"
+        params_details.append(period)
+    elif filter_type == 'period' and date_from and date_to:
+        sql_summary += " AND date(w.arrival_time) BETWEEN ? AND ?"
+        params_summary.extend([date_from, date_to])
+        sql_details += " AND a.wagon_number IN (SELECT wagon_number FROM wagons WHERE is_archived = 1 AND date(arrival_time) BETWEEN ? AND ?)"
+        params_details.extend([date_from, date_to])
+
+    sql_summary += " ORDER BY w.wagon_number"
+    sql_details += " ORDER BY a.wagon_number, a.timestamp ASC"
+
+    df_summary = pd.read_sql_query(sql_summary, conn, params=params_summary)
+    df_details = pd.read_sql_query(sql_details, conn, params=params_details)
     conn.close()
 
     action_map = {'added': 'Добавлен', 'moved': 'Перемещен', 'departed': 'Убыл', 'edit': 'Изменён'}
@@ -191,6 +221,49 @@ def export_archive_excel():
     )
 
 
+@export_bp.route('/export_wagon_history/<wagon_number>')
+def export_wagon_history(wagon_number):
+    """Экспорт истории конкретного активного вагона."""
+    conn = get_conn()
+    df = pd.read_sql_query("""
+        SELECT 
+            action_type as "Тип действия", 
+            from_track as "Откуда", 
+            to_track as "Куда", 
+            note as "Примечание", 
+            timestamp as "Время" 
+        FROM movement_history 
+        WHERE wagon_number = ?
+        ORDER BY timestamp ASC
+    """, conn, params=(wagon_number,))
+    conn.close()
+
+    if df.empty:
+        flash(f"Нет данных по вагону {wagon_number}", 'error')
+        return redirect(url_for('history.history_page'))
+
+    action_map = {'added': 'Добавлен', 'moved': 'Перемещен', 'departed': 'Убыл', 'edit': 'Изменён'}
+    df['Тип действия'] = df['Тип действия'].map(action_map).fillna(df['Тип действия'])
+
+    try:
+        df['Время'] = pd.to_datetime(df['Время']).dt.strftime('%d-%m-%Y %H:%M:%S')
+    except:
+        pass
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=f'История {wagon_number}', index=False)
+        apply_excel_styling(writer, f'История {wagon_number}', has_notes=True)
+
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"History_{wagon_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    )
+
+
 @export_bp.route('/export_wagon_archive/<wagon_number>')
 def export_wagon_archive(wagon_number):
     """Архивная история конкретного вагона с перепростоем."""
@@ -215,7 +288,6 @@ def export_wagon_archive(wagon_number):
     action_map = {'added': 'Добавлен', 'moved': 'Перемещен', 'departed': 'Убыл', 'edit': 'Изменён'}
     df['Тип действия'] = df['Тип действия'].map(action_map).fillna(df['Тип действия'])
 
-    # Формат даты
     try:
         df['Время'] = pd.to_datetime(df['Время']).dt.strftime('%d-%m-%Y %H:%M:%S')
     except:
@@ -223,7 +295,6 @@ def export_wagon_archive(wagon_number):
 
     overstay, amount = calculate_overstay(wagon_number)
 
-    # Добавляем две строки с итогами
     extra_rows = pd.DataFrame([
         {'Тип действия': '', 'Откуда': '', 'Куда': '', 'Примечание': 'Перепростой, сут:' if overstay > 0 else '', 'Время': str(overstay) if overstay > 0 else ''},
         {'Тип действия': '', 'Откуда': '', 'Куда': '', 'Примечание': 'Сумма, руб:' if amount > 0 else '', 'Время': f"{amount:.2f}" if amount > 0 else ''}

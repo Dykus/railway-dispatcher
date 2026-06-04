@@ -3,11 +3,10 @@
 Маршруты для истории перемещений и архива.
 """
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, redirect, url_for
 import sys
 import os
 
-# Добавляем пути для импорта
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from app.models import get_grouped_history, get_grouped_archive_history, get_conn
 
@@ -45,3 +44,48 @@ def archive_page():
         })
     conn.close()
     return render_template('archive.html', archive_groups=full_archive_data)
+
+
+@history_bp.route('/archive/export', methods=['GET', 'POST'])
+def archive_export_filter():
+    """Форма фильтрации архива по датам перед экспортом."""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("""
+        SELECT DISTINCT substr(arrival_time, 1, 4) as year,
+               substr(arrival_time, 6, 2) as month
+        FROM wagons 
+        WHERE is_archived = 1 AND arrival_time IS NOT NULL
+        ORDER BY year DESC, month DESC
+    """)
+    date_rows = c.fetchall()
+    conn.close()
+
+    # Группируем месяцы по годам
+    years = {}
+    for year, month in date_rows:
+        if year not in years:
+            years[year] = []
+        if month not in years[year]:
+            years[year].append(month)
+
+    if request.method == 'POST':
+        filter_type = request.form.get('filter_type', 'all')
+        year = request.form.get('year', '')
+        month = request.form.get('month', '')
+        date_from = request.form.get('date_from', '')
+        date_to = request.form.get('date_to', '')
+
+        params = {'filter_type': filter_type}
+        if filter_type == 'year' and year:
+            params['year'] = year
+        elif filter_type == 'month' and year and month:
+            params['year'] = year
+            params['month'] = month
+        elif filter_type == 'period':
+            params['date_from'] = date_from
+            params['date_to'] = date_to
+
+        return redirect(url_for('export.export_archive_excel', **params))
+
+    return render_template('archive_export_filter.html', years=years)
