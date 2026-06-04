@@ -4,7 +4,7 @@
 Основные маршруты: главная страница, добавление, перемещение, архивация, справка, о программе.
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, g
 from datetime import datetime, timedelta
 import sys
 import os
@@ -44,7 +44,8 @@ def get_local_ip():
 
 @main_bp.route('/')
 def index():
-    tracks, move_list = get_dashboard_data()
+    station_id = g.get('station_id', 1)
+    tracks, move_list = get_dashboard_data(station_id)
     is_admin = (request.user_role == 'admin')
     refresh_interval = int(get_setting('refresh_interval', '5'))
     return render_template('index.html',
@@ -72,6 +73,7 @@ def about_page():
 
 @main_bp.route('/add', methods=['POST'])
 def add_wagon():
+    station_id = g.get('station_id', 1)
     number = request.form.get('number', '').strip()
     owner = request.form.get('owner', '').strip()
     org = request.form.get('organization', '').strip()
@@ -98,7 +100,7 @@ def add_wagon():
 
     if not number or not owner or not org or not track_id_str:
         flash("Заполните все поля!", 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -116,7 +118,7 @@ def add_wagon():
         track_id = int(track_id_str)
     except ValueError:
         flash("Ошибка: Неверный ID пути.", 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -130,14 +132,14 @@ def add_wagon():
                                version=APP_VERSION,
                                refresh_interval=refresh_interval)
 
-    # Проверяем, нет ли уже активного визита с таким номером
+    # Проверяем, нет ли уже активного визита с таким номером на ЭТОЙ площадке
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND is_archived = 0", (number,))
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND is_archived = 0 AND station_id = ?", (number, station_id))
     if c.fetchone():
         conn.close()
         flash(f"⚠️ Вагон '{number}' уже на путях!", 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -161,7 +163,7 @@ def add_wagon():
 
     if (start_date and not start_time) or (start_time and not start_date):
         flash("Ошибка: Если вы указываете дату, нужно указать и время, и наоборот.", 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -198,19 +200,19 @@ def add_wagon():
         else:
             global_dep = (datetime.now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
 
-    # Всегда создаём новый визит
+    # Всегда создаём новый визит с привязкой к площадке
     compact_track(track_id)
     wagon_len = float(get_setting('default_wagon_length', '10.0'))
     pos = find_slot_on_track(track_id, wagon_len)[1]
     try:
-        c.execute("""INSERT INTO wagon_visits (wagon_number, length, cargo_type, owner, organization, track_id, start_pos, arrival_time, departure_time, local_departure_time, visit_count, is_archived)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)""",
-                  (number, wagon_len, note, owner, org, track_id, float(pos), arrival_time, global_dep, None))
+        c.execute("""INSERT INTO wagon_visits (wagon_number, length, cargo_type, owner, organization, track_id, start_pos, arrival_time, departure_time, local_departure_time, visit_count, is_archived, station_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)""",
+                  (number, wagon_len, note, owner, org, track_id, float(pos), arrival_time, global_dep, None, station_id))
         conn.commit()
         t_name = c.execute("SELECT name FROM tracks WHERE id=?", (track_id,)).fetchone()[0]
         conn.close()
-        log_movement(number, 'added', None, t_name, f"ТК: {owner}, Орг: {org}", arrival_time)
-        log_action('add', wagon_number=number, details=f"Добавлен на путь {t_name}. ТК: {owner}, Орг: {org}")
+        log_movement(number, 'added', None, t_name, f"ТК: {owner}, Орг: {org}", arrival_time, station_id=station_id)
+        log_action('add', wagon_number=number, details=f"Добавлен на путь {t_name}. ТК: {owner}, Орг: {org}", station_id=station_id)
         msg = f"✅ Вагон {number} добавлен с временем прибытия {arrival_time[:16]}."
         if total_mins > 0:
             msg += f" Срок: {days}д {hours}ч {mins}мин"
@@ -220,7 +222,7 @@ def add_wagon():
     except sqlite3.IntegrityError:
         conn.close()
         flash(f"⚠️ Ошибка базы данных.", 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -233,11 +235,12 @@ def add_wagon():
                                is_admin=is_admin,
                                version=APP_VERSION,
                                refresh_interval=refresh_interval)
-    return redirect(url_for('main.index'))
+    return redirect(url_for('main.index', station_id=station_id))
 
 
 @main_bp.route('/move', methods=['POST'])
 def move_action():
+    station_id = g.get('station_id', 1)
     wagon_id = request.form.get('wagon_id', '')
     new_track_id_str = request.form.get('new_track_id', '')
     local_days = request.form.get('local_days', '0')
@@ -260,7 +263,7 @@ def move_action():
 
     if not wagon_id or not new_track_id_str:
         flash("Выберите вагон и путь назначения!", 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -278,7 +281,7 @@ def move_action():
         new_track_id = int(new_track_id_str)
     except ValueError:
         flash("Ошибка: Неверный ID пути.", 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -301,7 +304,7 @@ def move_action():
 
     if (start_date and not start_time) or (start_time and not start_date):
         flash("Ошибка: Если вы указываете дату, нужно указать и время, и наоборот.", 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -326,15 +329,16 @@ def move_action():
     if start_date and start_time:
         manual_start = f"{start_date} {start_time}"
 
-    success, msg = move_wagon(wagon_id, new_track_id, l_days, l_hours, l_mins, manual_start, note)
+    # Передаём station_id в move_wagon, чтобы он проверил принадлежность вагона к площадке
+    success, msg = move_wagon(wagon_id, new_track_id, l_days, l_hours, l_mins, manual_start, note, station_id)
     if success:
         if old_track_id is not None:
             compact_track(old_track_id)
         flash(msg, 'success')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.index', station_id=station_id))
     else:
         flash(msg, 'error')
-        tracks, move_list = get_dashboard_data()
+        tracks, move_list = get_dashboard_data(station_id)
         is_admin = (request.user_role == 'admin')
         refresh_interval = int(get_setting('refresh_interval', '5'))
         return render_template('index.html',
@@ -351,9 +355,9 @@ def move_action():
 
 @main_bp.route('/depart/<int:wagon_id>', methods=['POST'])
 def depart_action(wagon_id):
-    # wagon_id теперь visit_id
+    station_id = g.get('station_id', 1)
     if depart_wagon(wagon_id):
         flash("✅ Вагон убран в архив.", 'success')
     else:
         flash("⚠️ Ошибка при удалении.", 'error')
-    return redirect(url_for('main.index'))
+    return redirect(url_for('main.index', station_id=station_id))

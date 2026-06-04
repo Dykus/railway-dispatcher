@@ -13,84 +13,36 @@
         })();
     </script>
     <style>
-        .filter-form {
-            max-width: 500px;
-            margin: 50px auto;
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 10px;
-        }
-        .filter-form h2 {
-            margin-top: 0;
-            color: #2c3e50;
-            text-align: center;
-        }
-        .filter-form label {
-            display: block;
-            font-weight: bold;
-            margin: 15px 0 5px 0;
-        }
-        .filter-form select, .filter-form input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #bdc3c7;
-            border-radius: 5px;
-        }
-        .filter-form .row {
-            display: flex;
-            gap: 15px;
-        }
-        .filter-form .row > div {
-            flex: 1;
-        }
-        .filter-form button {
-            width: 100%;
-            margin-top: 20px;
-            padding: 12px;
-            background: #27ae60;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .filter-form button:hover {
-            background: #2ecc71;
-        }
-        .nav-link {
-            text-align: center;
-            display: block;
-            margin-bottom: 20px;
-            color: #3498db;
-            text-decoration: none;
-        }
-        #periodFields, #yearField, #monthField {
-            display: none;
-        }
-        html.dark .filter-form {
-            background: #0f3460;
-            color: #e0e0e0;
-        }
-        html.dark .filter-form h2 {
-            color: #e0e0e0;
-        }
-        html.dark .filter-form select, 
-        html.dark .filter-form input {
-            background: #1a1a2e;
-            color: #e0e0e0;
-            border-color: #2c3e50;
-        }
+        .filter-form { max-width: 500px; margin: 50px auto; background: #f8f9fa; padding: 30px; border-radius: 10px; }
+        .filter-form h2 { margin-top: 0; color: #2c3e50; text-align: center; }
+        .filter-form label { display: block; font-weight: bold; margin: 15px 0 5px 0; }
+        .filter-form select, .filter-form input { width: 100%; padding: 10px; border: 1px solid #bdc3c7; border-radius: 5px; }
+        .filter-form .row { display: flex; gap: 15px; }
+        .filter-form .row > div { flex: 1; }
+        .filter-form button { width: 100%; margin-top: 20px; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .filter-form button:hover { background: #2ecc71; }
+        .nav-link { text-align: center; display: block; margin-bottom: 20px; color: #3498db; text-decoration: none; }
+        #periodFields, #yearField, #monthField { display: none; }
+        html.dark .filter-form { background: #0f3460; color: #e0e0e0; }
+        html.dark .filter-form h2 { color: #e0e0e0; }
+        html.dark .filter-form select, html.dark .filter-form input { background: #1a1a2e; color: #e0e0e0; border-color: #2c3e50; }
     </style>
 </head>
 <body>
 <div class="container">
-    <a href="/archive" class="nav-link">← Назад к архиву</a>
-    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <a href="/archive?station_id={{ current_station_id }}" class="nav-link">← Назад к архиву</a>
+        <div class="station-tabs" style="display: flex; gap: 10px;">
+            <a href="?station_id=1" class="btn {% if current_station_id == 1 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Основная</a>
+            <a href="?station_id=2" class="btn {% if current_station_id == 2 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Вторая</a>
+        </div>
+    </div>
+
     <div class="filter-form">
         <h2>📊 Фильтр экспорта архива</h2>
         
         <form method="POST">
+            <input type="hidden" name="station_id" value="{{ current_station_id }}">
             <label for="filter_type">Выберите период:</label>
             <select name="filter_type" id="filter_type" onchange="toggleFields()">
                 <option value="all">Все вагоны</option>
@@ -154,7 +106,6 @@
         document.getElementById('periodFields').style.display = (type === 'period') ? 'block' : 'none';
     }
     
-    // При загрузке показываем нужные поля
     toggleFields();
 </script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>

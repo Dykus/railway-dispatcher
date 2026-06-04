@@ -13,97 +13,43 @@
         })();
     </script>
     <style>
-        .ip-form {
-            background: #ecf0f1;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: flex-end;
-            gap: 10px;
-        }
-        .ip-form .field-group {
-            display: flex;
-            flex-direction: column;
-            min-width: 120px;
-        }
-        .ip-form .field-group label {
-            font-size: 11px;
-            color: #555;
-            margin-bottom: 2px;
-        }
-        .ip-form input, .ip-form select {
-            padding: 8px;
-            border: 1px solid #bdc3c7;
-            border-radius: 4px;
-        }
-        .ip-form .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            white-space: nowrap;
-        }
-        .ip-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            margin-top: 20px;
-        }
-        .ip-table th, .ip-table td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: left;
-            vertical-align: top;
-        }
-        .ip-table th {
-            background: #34495e;
-            color: white;
-            font-weight: bold;
-        }
-        .ip-table tr:nth-child(even) {
-            background: #f9f9f9;
-        }
-        .delete-btn {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .nav-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-        .btn {
-            display: inline-block;
-            padding: 8px 15px;
-            background: #3498db;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            border: none;
-            cursor: pointer;
-        }
+        .ip-form { background: #ecf0f1; padding: 15px; border-radius: 8px; margin-bottom: 30px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+        .ip-form .field-group { display: flex; flex-direction: column; min-width: 120px; }
+        .ip-form .field-group label { font-size: 11px; color: #555; margin-bottom: 2px; }
+        .ip-form input, .ip-form select { padding: 8px; border: 1px solid #bdc3c7; border-radius: 4px; }
+        .ip-form .checkbox-group { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+        .ip-table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        .ip-table th, .ip-table td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
+        .ip-table th { background: #34495e; color: white; font-weight: bold; }
+        .ip-table tr:nth-child(even) { background: #f9f9f9; }
+        .delete-btn { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .nav-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .btn { display: inline-block; padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; }
         .btn-primary { background: #3498db; }
         .btn-success { background: #27ae60; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🔗 Привязка IP к именам пользователей</h1>
-    <div class="nav-buttons">
-        <a href="/" class="btn btn-primary">🏠 На главную</a>
-        <a href="/admin/logs" class="btn btn-primary">📜 Журнал действий</a>
-        <a href="/admin/backups" class="btn btn-primary">💾 Бэкапы</a>
-        <a href="/admin/changelog" class="btn btn-primary">📋 Список изменений</a>
-        <a href="/admin/settings" class="btn btn-primary">⚙️ Настройки</a>
+    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <h1 style="margin: 0;">🔗 Привязка IP к именам пользователей</h1>
+            <div class="station-tabs" style="display: flex; gap: 10px;">
+                <a href="?station_id=1" class="btn {% if current_station_id == 1 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Основная</a>
+                <a href="?station_id=2" class="btn {% if current_station_id == 2 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Вторая</a>
+            </div>
+        </div>
+        <div class="nav-buttons">
+            <a href="/?station_id={{ current_station_id }}" class="btn btn-primary">🏠 На главную</a>
+            <a href="/admin/logs?station_id={{ current_station_id }}" class="btn btn-primary">📜 Журнал действий</a>
+            <a href="/admin/backups?station_id={{ current_station_id }}" class="btn btn-primary">💾 Бэкапы</a>
+            <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn btn-primary">📋 Список изменений</a>
+            <a href="/admin/settings?station_id={{ current_station_id }}" class="btn btn-primary">⚙️ Настройки</a>
+        </div>
     </div>
 
     <form method="POST" class="ip-form">
+        <input type="hidden" name="station_id" value="{{ current_station_id }}">
         <div class="field-group">
             <label>IP-адрес</label>
             <input type="text" name="ip_address" placeholder="192.168.1.100" required>
@@ -155,6 +101,7 @@
                 <td>
                     <form method="POST" style="margin:0; padding:0; display:inline;" onsubmit="return confirm('Удалить привязку для {{ ip }}?')">
                         <input type="hidden" name="delete_ip" value="{{ ip }}">
+                        <input type="hidden" name="station_id" value="{{ current_station_id }}">
                         <button type="submit" class="delete-btn">❌ Удалить</button>
                     </form>
                 </td>

@@ -11,6 +11,11 @@ const tooltip = document.getElementById('global-tooltip');
 const removeContainer = document.getElementById('tt-remove-container');
 const editContainer = document.getElementById('tt-edit-container');
 
+// Получаем текущий station_id из URL
+function getStationId() {
+    return new URLSearchParams(window.location.search).get('station_id') || '1';
+}
+
 function normalizeDateTimeForEdit(dateTimeStr) {
     if (!dateTimeStr || dateTimeStr.trim() === '') return '';
     let str = dateTimeStr.trim();
@@ -218,7 +223,7 @@ function openTooltip(el, id, num, owner, org, note, arrival, locIso, globIso, tr
         ttGlob.removeAttribute('data-time');
         ttGlob.innerText = 'Нет';
     }
-    document.getElementById('tt-depart-form').action = '/depart/' + id;
+    document.getElementById('tt-depart-form').action = '/depart/' + id + '?station_id=' + getStationId();
     activeWagonId = id;
     activeWagonNum = num;
     activeWagonOwner = owner;
@@ -285,7 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (arrival) formData.set('arrival_time', normalizeDateTimeForEdit(arrival));
             if (globalDeadline) formData.set('departure_time', normalizeDateTimeForEdit(globalDeadline));
             if (localDeadline) formData.set('local_departure_time', normalizeDateTimeForEdit(localDeadline));
-            const response = await fetch(`/admin/edit_wagon/${wagonId}`, {
+            const response = await fetch(`/admin/edit_wagon/${wagonId}?station_id=${getStationId()}`, {
                 method: 'POST',
                 body: formData
             });
@@ -435,7 +440,8 @@ function updateAllTimers() {
 
 function fetchWagonInfo(num) {
     if (!num) return;
-    fetch('/api/wagon_info?num=' + encodeURIComponent(num))
+    const stationId = getStationId();
+    fetch('/api/wagon_info?num=' + encodeURIComponent(num) + '&station_id=' + stationId)
         .then(r => r.json())
         .then(d => {
             if (d.owner) document.getElementById('new-wagon-owner').value = d.owner;
@@ -445,7 +451,8 @@ function fetchWagonInfo(num) {
 }
 
 function updateDashboard() {
-    fetch('/api/dashboard_data')
+    const stationId = getStationId();
+    fetch('/api/dashboard_data?station_id=' + stationId)
         .then(response => response.json())
         .then(data => {
             const totalCountElem = document.querySelector('.total-count');
@@ -583,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const oldTime = this.dataset.time;
             const newTime = prompt('Введите новую дату и время (поддерживается ГГГГ-ММ-ДД ЧЧ:ММ, ДД.ММ.ГГГГ ЧЧ:ММ, ДДММГГГГ и т.д.):', oldTime);
             if (newTime && newTime !== oldTime) {
-                fetch(`/admin/edit_history/${historyId}`, {
+                fetch(`/admin/edit_history/${historyId}?station_id=${getStationId()}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: 'timestamp=' + encodeURIComponent(newTime)

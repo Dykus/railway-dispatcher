@@ -1,10 +1,10 @@
-# НАЧАЛО ФАЙЛА app/routes/admin.py
+# app/routes/admin.py
 # -*- coding: utf-8 -*-
 """
 Административные маршруты: бэкапы, журнал действий, управление IP, список изменений, настройки, пути.
 """
 
-from flask import Blueprint, request, send_file, flash, redirect, url_for, render_template, jsonify
+from flask import Blueprint, request, send_file, flash, redirect, url_for, render_template, jsonify, g
 import os
 import sys
 import glob
@@ -25,7 +25,6 @@ from app.utils import log_action, parse_flexible_date
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
-# ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def apply_excel_styling(writer, sheet_name, has_notes=False):
     from openpyxl.styles import Font, Alignment
     worksheet = writer.sheets[sheet_name]
@@ -133,9 +132,10 @@ def restore_backup():
 def view_logs():
     if request.user_role != 'admin':
         return "Доступ запрещён", 403
+    station_id = g.get('station_id', 1)
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 500")
+    c.execute("SELECT * FROM action_log WHERE station_id = ? ORDER BY timestamp DESC LIMIT 500", (station_id,))
     logs = c.fetchall()
     conn.close()
     action_translation = {
@@ -164,6 +164,7 @@ def view_logs():
 def export_logs_excel():
     if request.user_role != 'admin':
         return "Доступ запрещён", 403
+    station_id = g.get('station_id', 1)
     conn = get_conn()
     df = pd.read_sql_query("""
         SELECT 
@@ -176,8 +177,9 @@ def export_logs_excel():
             old_value as "Старое значение",
             new_value as "Новое значение"
         FROM action_log
+        WHERE station_id = ?
         ORDER BY timestamp DESC
-    """, conn)
+    """, conn, params=(station_id,))
     conn.close()
     action_map = {
         'add': 'Добавление вагона',
@@ -207,7 +209,7 @@ def export_logs_excel():
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"ActionLog_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 
-# ==================== УПРАВЛЕНИЕ IP ====================
+# ==================== УПРАВЛЕНИЕ IP (глобальное, без площадок) ====================
 @admin_bp.route('/ip_users', methods=['GET', 'POST'])
 def manage_ip_users():
     if request.user_role != 'admin':
@@ -247,6 +249,7 @@ def manage_ip_users():
 def edit_wagon_route(wagon_id):
     if request.user_role not in ('supervisor', 'admin'):
         return jsonify({"error": "Недостаточно прав"}), 403
+    station_id = g.get('station_id', 1)
     new_owner = request.form.get('owner') or None
     new_org = request.form.get('organization') or None
     new_note = request.form.get('note') or None
@@ -254,7 +257,7 @@ def edit_wagon_route(wagon_id):
     new_global = request.form.get('departure_time') or None
     new_local = request.form.get('local_departure_time') or None
     from app.models import edit_wagon
-    success, msg = edit_wagon(wagon_id, new_owner, new_org, new_note, new_arrival, new_global, new_local)
+    success, msg = edit_wagon(wagon_id, new_owner, new_org, new_note, new_arrival, new_global, new_local, station_id)
     if success:
         return jsonify({"success": True, "message": msg})
     else:
@@ -310,9 +313,9 @@ def edit_history(history_id):
     last_ts = c.fetchone()[0]
     if last_ts == new_timestamp:
         if action_type == 'added':
-            c.execute("UPDATE wagons SET arrival_time = ? WHERE wagon_number = ? AND is_archived = 0", (new_timestamp, wagon_num))
+            c.execute("UPDATE wagon_visits SET arrival_time = ? WHERE wagon_number = ? AND is_archived = 0", (new_timestamp, wagon_num))
         elif action_type == 'moved':
-            c.execute("SELECT local_departure_time FROM wagons WHERE wagon_number = ? AND is_archived = 0", (wagon_num,))
+            c.execute("SELECT local_departure_time FROM wagon_visits WHERE wagon_number = ? AND is_archived = 0", (wagon_num,))
             loc = c.fetchone()
             if loc and loc[0]:
                 try:
@@ -321,7 +324,7 @@ def edit_history(history_id):
                     new_event_dt = datetime.strptime(new_timestamp, '%Y-%m-%d %H:%M:%S')
                     delta = old_loc_dt - old_event_dt
                     new_loc_dt = new_event_dt + delta
-                    c.execute("UPDATE wagons SET local_departure_time = ? WHERE wagon_number = ? AND is_archived = 0",
+                    c.execute("UPDATE wagon_visits SET local_departure_time = ? WHERE wagon_number = ? AND is_archived = 0",
                               (new_loc_dt.strftime('%Y-%m-%d %H:%M:%S'), wagon_num))
                 except:
                     pass
@@ -351,6 +354,8 @@ def settings():
     if request.user_role != 'admin':
         return "Доступ запрещён", 403
 
+    station_id = g.get('station_id', 1)
+
     if request.method == 'POST':
         action = request.form.get('action')
         # Управление путями
@@ -359,11 +364,11 @@ def settings():
             length = request.form.get('track_length', '')
             track_type = request.form.get('track_type', 'normal')
             if name and length:
-                success, msg = add_track(name, length, track_type)
+                success, msg = add_track(name, length, track_type, station_id)
                 flash(msg, 'success' if success else 'error')
             else:
                 flash("Название и длина обязательны", 'error')
-            return redirect(url_for('admin.settings'))
+            return redirect(url_for('admin.settings', station_id=station_id))
         elif action == 'edit_track':
             track_id = request.form.get('track_id')
             name = request.form.get('track_name', '').strip()
@@ -374,13 +379,13 @@ def settings():
                 flash(msg, 'success' if success else 'error')
             else:
                 flash("Название и длина обязательны", 'error')
-            return redirect(url_for('admin.settings'))
+            return redirect(url_for('admin.settings', station_id=station_id))
         elif action == 'delete_track':
             track_id = request.form.get('track_id')
             if track_id:
                 success, msg = delete_track(track_id)
                 flash(msg, 'success' if success else 'error')
-            return redirect(url_for('admin.settings'))
+            return redirect(url_for('admin.settings', station_id=station_id))
         # Сохранение всех настроек
         else:
             keys = [
@@ -396,10 +401,10 @@ def settings():
                 set_setting(key, value)
             set_setting('overstay_progressive', '1' if request.form.get('overstay_progressive') else '0')
             flash('Настройки сохранены', 'success')
-            return redirect(url_for('admin.settings'))
+            return redirect(url_for('admin.settings', station_id=station_id))
 
     settings_dict = get_all_settings()
-    tracks = get_all_tracks()
+    tracks = get_all_tracks(station_id)
     return render_template('admin_settings.html', settings=settings_dict, tracks=tracks)
 
 
@@ -427,5 +432,3 @@ def save_tracks_order():
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
-
-# КОНЕЦ ФАЙЛА app/routes/admin.py

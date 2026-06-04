@@ -13,37 +13,31 @@
         })();
     </script>
     <style>
-        .nav-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-        .btn {
-            display: inline-block;
-            padding: 8px 15px;
-            background: #3498db;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            border: none;
-            cursor: pointer;
-        }
+        .nav-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .btn { display: inline-block; padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; }
         .btn-success { background: #27ae60; }
         .btn-danger { background: #e74c3c; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>📦 Резервные копии базы данных</h1>
-    <div class="nav-buttons">
-        <a href="/" class="btn">🏠 На главную</a>
-        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
-        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
-        <a href="/admin/changelog" class="btn">📋 Список изменений</a>
-        <a href="/admin/settings" class="btn">⚙️ Настройки</a>
+    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <h1 style="margin: 0;">📦 Резервные копии базы данных</h1>
+            <div class="station-tabs" style="display: flex; gap: 10px;">
+                <a href="?station_id=1" class="btn {% if current_station_id == 1 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Основная</a>
+                <a href="?station_id=2" class="btn {% if current_station_id == 2 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Вторая</a>
+            </div>
+        </div>
+        <div class="nav-buttons">
+            <a href="/?station_id={{ current_station_id }}" class="btn">🏠 На главную</a>
+            <a href="/admin/logs?station_id={{ current_station_id }}" class="btn">📜 Журнал действий</a>
+            <a href="/admin/ip_users?station_id={{ current_station_id }}" class="btn">🔗 Привязка IP</a>
+            <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn">📋 Список изменений</a>
+            <a href="/admin/settings?station_id={{ current_station_id }}" class="btn">⚙️ Настройки</a>
+        </div>
     </div>
-    <p><a href="#" onclick="event.preventDefault(); fetch('/admin/backup', {method:'POST'}).then(r=>r.text()).then(alert);" class="btn btn-success">➕ Создать новую копию</a></p>
+    <p><a href="#" onclick="event.preventDefault(); fetch('/admin/backup?station_id={{ current_station_id }}', {method:'POST'}).then(r=>r.text()).then(alert);" class="btn btn-success">➕ Создать новую копию</a></p>
     <table>
         <tr><th>Имя файла</th><th>Размер (КБ)</th><th>Дата изменения</th><th>Действия</th></tr>
         {% for b in backups_info %}
@@ -52,7 +46,7 @@
             <td>{{ (b.size / 1024) | round(1) }}</td>
             <td>{{ b.modified }}</td>
             <td>
-                <a href="/admin/download_backup?rel_path={{ b.rel_path }}" class="btn">📥 Скачать</a>
+                <a href="/admin/download_backup?rel_path={{ b.rel_path }}&station_id={{ current_station_id }}" class="btn">📥 Скачать</a>
                 <a href="#" onclick="restore('{{ b.rel_path }}'); return false;" class="btn btn-danger">🔄 Восстановить</a>
             </td>
         </tr>
@@ -62,7 +56,7 @@
 <script>
 function restore(relPath) {
     if (confirm('Восстановление заменит текущую базу данных! Сделайте резервную копию перед восстановлением. Продолжить?')) {
-        fetch('/admin/restore', {
+        fetch('/admin/restore?station_id={{ current_station_id }}', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: 'rel_path=' + encodeURIComponent(relPath)

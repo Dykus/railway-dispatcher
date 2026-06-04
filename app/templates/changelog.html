@@ -13,39 +13,29 @@
         })();
     </script>
     <style>
-        .nav-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-        .btn {
-            display: inline-block;
-            padding: 8px 15px;
-            background: #3498db;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-        }
-        pre {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            overflow-x: auto;
-            white-space: pre-wrap;
-        }
+        .nav-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .btn { display: inline-block; padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="nav-buttons">
-        <a href="/" class="btn">🏠 На главную</a>
-        <a href="/admin/logs" class="btn">📜 Журнал действий</a>
-        <a href="/admin/ip_users" class="btn">🔗 Привязка IP</a>
-        <a href="/admin/backups" class="btn">📦 Резервные копии</a>
-        <a href="/admin/settings" class="btn">⚙️ Настройки</a>
+    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <h1 style="margin: 0;">📋 Список изменений</h1>
+            <div class="station-tabs" style="display: flex; gap: 10px;">
+                <a href="?station_id=1" class="btn {% if current_station_id == 1 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Основная</a>
+                <a href="?station_id=2" class="btn {% if current_station_id == 2 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Вторая</a>
+            </div>
+        </div>
+        <div class="nav-buttons">
+            <a href="/?station_id={{ current_station_id }}" class="btn">🏠 На главную</a>
+            <a href="/admin/logs?station_id={{ current_station_id }}" class="btn">📜 Журнал действий</a>
+            <a href="/admin/ip_users?station_id={{ current_station_id }}" class="btn">🔗 Привязка IP</a>
+            <a href="/admin/backups?station_id={{ current_station_id }}" class="btn">📦 Резервные копии</a>
+            <a href="/admin/settings?station_id={{ current_station_id }}" class="btn">⚙️ Настройки</a>
+        </div>
     </div>
-    <h1>📋 Список изменений</h1>
     <pre>{{ content }}</pre>
 </div>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>

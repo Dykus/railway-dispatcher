@@ -1,34 +1,25 @@
+# app/__init__.py
 # -*- coding: utf-8 -*-
-"""
-Инициализация Flask-приложения «ЖД Диспетчерская».
-"""
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 import os
 import sys
 from datetime import datetime, timedelta
 
-# Добавляем корневую директорию в путь для импорта config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import SECRET_KEY, APP_VERSION, DB_NAME, BACKUP_DIR
 from app.models import init_db, clean_action_log, get_last_auto_backup_time, create_auto_backup, schedule_daily_backup
 from app.utils import is_ip_allowed, get_role_by_ip
 
 def create_app():
-    """Создаёт и настраивает Flask-приложение."""
-    # --- Определяем пути к шаблонам и статике в зависимости от режима запуска ---
     if getattr(sys, 'frozen', False):
-        # Запущено как EXE (PyInstaller)
         template_folder = os.path.join(sys._MEIPASS, 'templates')
         static_folder = os.path.join(sys._MEIPASS, 'static')
         app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
     else:
-        # Обычный запуск через Python
         app = Flask(__name__)
 
     app.secret_key = SECRET_KEY
 
-    # Инициализация БД и фоновых задач
     init_db()
     clean_action_log()
 
@@ -38,13 +29,18 @@ def create_app():
         create_auto_backup()
     schedule_daily_backup()
 
-    # Глобальная проверка доступа (before_request)
     @app.before_request
     def before_request_check():
+        # Определяем station_id
+        try:
+            station_id = int(request.args.get('station_id', 1))
+        except (ValueError, TypeError):
+            station_id = 1
+        g.station_id = station_id
+
         if request.endpoint in ('static',):
             return
         ip = request.remote_addr
-
         allowed, role, msg = check_access_for_route(ip, request.endpoint)
         if not allowed:
             if request.path.startswith('/api/'):
@@ -54,7 +50,6 @@ def create_app():
         request.user_role = role
 
     def check_access_for_route(ip, endpoint):
-        """Внутренняя функция проверки прав доступа."""
         if ip in ('127.0.0.1', '::1'):
             role = 'admin'
         else:
@@ -100,7 +95,10 @@ def create_app():
             else:
                 return False, role, "Маршрут не доступен."
 
-    # Импортируем и регистрируем Blueprints
+    @app.context_processor
+    def inject_station_id():
+        return dict(current_station_id=g.get('station_id', 1))
+
     from app.routes.main import main_bp
     from app.routes.history import history_bp
     from app.routes.api import api_bp

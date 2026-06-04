@@ -15,13 +15,21 @@
 </head>
 <body>
 <div class="container">
-    <div class="nav-links">
-        <a href="/" class="nav-link">🏠 На главную</a>
-        <a href="/archive" class="nav-link nav-link-archive">🗄️ Архив</a>
-        <a href="/export_history_excel" class="nav-link nav-link-excel">📊 Скачать Excel (все вагоны)</a>
-        <a href="/help" class="nav-link nav-link-help">❓ Помощь</a>
+    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <h1 style="margin: 0;">{{ title }}</h1>
+            <div class="station-tabs" style="display: flex; gap: 10px;">
+                <a href="?station_id=1" class="btn {% if current_station_id == 1 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Основная</a>
+                <a href="?station_id=2" class="btn {% if current_station_id == 2 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Вторая</a>
+            </div>
+        </div>
+        <div class="nav-links" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="/?station_id={{ current_station_id }}" class="nav-link">🏠 На главную</a>
+            <a href="/archive?station_id={{ current_station_id }}" class="nav-link nav-link-archive">🗄️ Архив</a>
+            <a href="/export_history_excel?station_id={{ current_station_id }}" class="nav-link nav-link-excel">📊 Скачать Excel (все вагоны)</a>
+            <a href="/help?station_id={{ current_station_id }}" class="nav-link nav-link-help">❓ Помощь</a>
+        </div>
     </div>
-    <h1>{{ title }}</h1>
 
     <div class="search-box">
         <input type="text" id="searchInput" placeholder="🔍 Поиск по номеру вагона..." autocomplete="off">
@@ -39,7 +47,7 @@
                     <span class="wagon-num">{{ item.num }}</span>
                     <span class="status-{% if 'Добавлен' in item.last_status %}added{% elif 'Перемещен' in item.last_status %}moved{% elif 'Изменён' in item.last_status %}edit{% else %}departed{% endif %}">{{ item.last_status|safe }}</span>
                     <span class="wagon-info">📅 {{ item.last_time[:16] }} | Событий: {{ item.count }}</span>
-                    <a href="/export_wagon_history/{{ item.num }}" class="excel-wagon-btn" title="Выгрузить историю только этого вагона">📊 Excel</a>
+                    <a href="/export_wagon_history/{{ item.num }}?station_id={{ current_station_id }}" class="excel-wagon-btn" title="Выгрузить историю только этого вагона">📊 Excel</a>
                 </summary>
                 <div class="details-content">
                     <table class="history-table">

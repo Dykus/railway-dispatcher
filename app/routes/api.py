@@ -1,14 +1,14 @@
+# app/routes/api.py
 # -*- coding: utf-8 -*-
 """
 API-маршруты для получения данных в формате JSON.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from datetime import datetime
 import sys
 import os
 
-# Добавляем пути для импорта
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from app.models import get_dashboard_data, get_conn
 
@@ -17,13 +17,13 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 @api_bp.route('/status')
 def api_status():
-    """Возвращает статус таймеров для всех активных вагонов."""
+    station_id = g.get('station_id', 1)
     conn = get_conn()
     c = conn.cursor()
     now = datetime.now()
     c.execute("""SELECT w.id, w.local_departure_time, w.departure_time 
-                 FROM wagons w 
-                 WHERE w.status != 'departed' AND w.is_archived = 0""")
+                 FROM wagon_visits w 
+                 WHERE w.status != 'departed' AND w.is_archived = 0 AND w.station_id = ?""", (station_id,))
     rows = c.fetchall()
     conn.close()
     result = []
@@ -48,16 +48,16 @@ def api_status():
 
 @api_bp.route('/wagon_info')
 def get_wagon_info():
-    """Возвращает информацию о вагоне (ТК и организация) по номеру."""
+    station_id = g.get('station_id', 1)
     num = request.args.get('num', '').strip()
     if not num:
         return jsonify({})
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT owner, organization FROM wagons WHERE wagon_number = ? LIMIT 1", (num,))
+    c.execute("SELECT owner, organization FROM wagon_visits WHERE wagon_number = ? AND station_id = ? LIMIT 1", (num, station_id))
     row = c.fetchone()
     if not row:
-        c.execute("SELECT owner, organization FROM wagons WHERE wagon_number = ? AND is_archived = 1 ORDER BY id DESC LIMIT 1", (num,))
+        c.execute("SELECT owner, organization FROM wagon_visits WHERE wagon_number = ? AND is_archived = 1 AND station_id = ? ORDER BY id DESC LIMIT 1", (num, station_id))
         row = c.fetchone()
     conn.close()
     if row:
@@ -67,8 +67,8 @@ def get_wagon_info():
 
 @api_bp.route('/dashboard_data')
 def api_dashboard_data():
-    """Возвращает полные данные о путях и вагонах для AJAX-обновления."""
-    tracks, move_list = get_dashboard_data()
+    station_id = g.get('station_id', 1)
+    tracks, move_list = get_dashboard_data(station_id)
     result = []
     for track in tracks:
         wagons_data = []

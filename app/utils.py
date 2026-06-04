@@ -1,3 +1,4 @@
+# app/utils.py
 # -*- coding: utf-8 -*-
 """
 Вспомогательные функции: очистка строк, работа с IP и ролями, логирование, парсинг дат.
@@ -6,9 +7,8 @@
 import re
 import sqlite3
 from datetime import datetime
-from flask import request
+from flask import request, g
 
-# Импортируем конфигурацию
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -76,11 +76,9 @@ def get_username_by_ip(ip):
     return ip
 
 
-def log_action(action, wagon_number=None, details=None, old_value=None, new_value=None):
+def log_action(action, wagon_number=None, details=None, old_value=None, new_value=None, station_id=None):
     """Записывает действие в журнал action_log."""
     try:
-        # Если функция вызвана не из контекста запроса (например, при автоматическом бэкапе),
-        # используем системные значения.
         if request:
             ip = request.remote_addr
             username = get_username_by_ip(ip)
@@ -91,14 +89,21 @@ def log_action(action, wagon_number=None, details=None, old_value=None, new_valu
         ip = '127.0.0.1'
         username = 'system'
 
+    # Если station_id не передан, берём из контекста g
+    if station_id is None:
+        try:
+            station_id = g.get('station_id', 1)
+        except RuntimeError:
+            station_id = 1
+
     try:
         conn = get_conn()
         c = conn.cursor()
         c.execute('''INSERT INTO action_log 
-            (timestamp, username, ip_address, action, wagon_number, details, old_value, new_value)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            (timestamp, username, ip_address, action, wagon_number, details, old_value, new_value, station_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-             username, ip, action, wagon_number, details, old_value, new_value))
+             username, ip, action, wagon_number, details, old_value, new_value, station_id))
         conn.commit()
         conn.close()
     except Exception as e:
@@ -110,7 +115,6 @@ def parse_flexible_date(date_str):
     if not date_str or not date_str.strip():
         return None
     date_str = date_str.strip()
-    # Популярные форматы
     for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d',
                 '%d-%m-%Y %H:%M:%S', '%d-%m-%Y %H:%M', '%d-%m-%Y',
                 '%d.%m.%Y %H:%M:%S', '%d.%m.%Y %H:%M', '%d.%m.%Y'):
@@ -118,16 +122,15 @@ def parse_flexible_date(date_str):
             return datetime.strptime(date_str, fmt)
         except:
             pass
-    # Если не получилось, пробуем по цифрам (ДДММГГГГ и т.п.)
     digits = re.sub(r'\D', '', date_str)
-    if len(digits) == 12:  # ДДММГГГГЧЧММ
+    if len(digits) == 12:
         try:
             day = int(digits[0:2]); month = int(digits[2:4]); year = int(digits[4:8])
             hour = int(digits[8:10]); minute = int(digits[10:12])
             return datetime(year, month, day, hour, minute)
         except:
             pass
-    if len(digits) == 8:  # ДДММГГГГ
+    if len(digits) == 8:
         try:
             day = int(digits[0:2]); month = int(digits[2:4]); year = int(digits[4:8])
             return datetime(year, month, day)

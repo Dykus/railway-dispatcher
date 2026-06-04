@@ -4,7 +4,7 @@
 Маршруты для экспорта данных в Excel.
 """
 
-from flask import Blueprint, send_file, flash, redirect, url_for, request
+from flask import Blueprint, send_file, flash, redirect, url_for, request, g
 import io
 import pandas as pd
 from datetime import datetime
@@ -45,6 +45,7 @@ def apply_excel_styling(writer, sheet_name, has_notes=False):
 
 @export_bp.route('/export_excel')
 def export_excel():
+    station_id = g.get('station_id', 1)
     conn = get_conn()
     df = pd.read_sql_query("""
         SELECT 
@@ -56,9 +57,9 @@ def export_excel():
             wv.departure_time as "Глобальный срок" 
         FROM wagon_visits wv 
         JOIN tracks t ON wv.track_id = t.id 
-        WHERE wv.status != 'departed' AND wv.is_archived = 0
+        WHERE wv.status != 'departed' AND wv.is_archived = 0 AND wv.station_id = ?
         ORDER BY wv.wagon_number
-    """, conn)
+    """, conn, params=(station_id,))
     conn.close()
 
     output = io.BytesIO()
@@ -73,6 +74,7 @@ def export_excel():
 
 @export_bp.route('/export_history_excel')
 def export_history_excel():
+    station_id = g.get('station_id', 1)
     conn = get_conn()
     df = pd.read_sql_query("""
         SELECT 
@@ -85,9 +87,10 @@ def export_history_excel():
             m.note as "Примечание", 
             m.timestamp as "Время" 
         FROM movement_history m
-        LEFT JOIN wagon_visits wv ON m.wagon_number = wv.wagon_number AND wv.is_archived = 0
+        LEFT JOIN wagon_visits wv ON m.wagon_number = wv.wagon_number AND wv.is_archived = 0 AND wv.station_id = ?
+        WHERE m.station_id = ?
         ORDER BY m.timestamp DESC
-    """, conn)
+    """, conn, params=(station_id, station_id))
     conn.close()
 
     action_map = {'added': 'Добавлен', 'moved': 'Перемещен', 'departed': 'Убыл', 'edit': 'Изменён'}
@@ -105,6 +108,7 @@ def export_history_excel():
 
 @export_bp.route('/export_archive_excel')
 def export_archive_excel():
+    station_id = g.get('station_id', 1)
     conn = get_conn()
     filter_type = request.args.get('filter_type', 'all')
     year = request.args.get('year', '')
@@ -122,7 +126,7 @@ def export_archive_excel():
             (SELECT MAX(timestamp) FROM archived_history WHERE visit_id = wv.id) as "Фактическое убытие",
             wv.id as visit_id
         FROM wagon_visits wv
-        WHERE wv.is_archived = 1
+        WHERE wv.is_archived = 1 AND wv.station_id = ?
     """
     sql_details = """
         SELECT 
@@ -133,28 +137,28 @@ def export_archive_excel():
             a.note as "Примечание", 
             a.timestamp as "Время"
         FROM archived_history a
-        WHERE a.visit_id IN (SELECT id FROM wagon_visits WHERE is_archived = 1)
+        WHERE a.station_id = ?
     """
 
-    params_summary = []
-    params_details = []
+    params_summary = [station_id]
+    params_details = [station_id]
 
     if filter_type == 'year' and year:
         sql_summary += " AND substr(wv.arrival_time, 1, 4) = ?"
         params_summary.append(year)
-        sql_details += " AND a.visit_id IN (SELECT id FROM wagon_visits WHERE is_archived = 1 AND substr(arrival_time, 1, 4) = ?)"
-        params_details.append(year)
+        sql_details += " AND a.visit_id IN (SELECT id FROM wagon_visits WHERE is_archived = 1 AND station_id = ? AND substr(arrival_time, 1, 4) = ?)"
+        params_details.extend([station_id, year])
     elif filter_type == 'month' and year and month:
         period = f"{year}-{month}"
         sql_summary += " AND substr(wv.arrival_time, 1, 7) = ?"
         params_summary.append(period)
-        sql_details += " AND a.visit_id IN (SELECT id FROM wagon_visits WHERE is_archived = 1 AND substr(arrival_time, 1, 7) = ?)"
-        params_details.append(period)
+        sql_details += " AND a.visit_id IN (SELECT id FROM wagon_visits WHERE is_archived = 1 AND station_id = ? AND substr(arrival_time, 1, 7) = ?)"
+        params_details.extend([station_id, period])
     elif filter_type == 'period' and date_from and date_to:
         sql_summary += " AND date(wv.arrival_time) BETWEEN ? AND ?"
         params_summary.extend([date_from, date_to])
-        sql_details += " AND a.visit_id IN (SELECT id FROM wagon_visits WHERE is_archived = 1 AND date(arrival_time) BETWEEN ? AND ?)"
-        params_details.extend([date_from, date_to])
+        sql_details += " AND a.visit_id IN (SELECT id FROM wagon_visits WHERE is_archived = 1 AND station_id = ? AND date(arrival_time) BETWEEN ? AND ?)"
+        params_details.extend([station_id, date_from, date_to])
 
     sql_summary += " ORDER BY wv.wagon_number"
     sql_details += " ORDER BY a.wagon_number, a.timestamp ASC"
@@ -202,18 +206,19 @@ def export_archive_excel():
 
 @export_bp.route('/export_wagon_history/<wagon_number>')
 def export_wagon_history(wagon_number):
+    station_id = g.get('station_id', 1)
     conn = get_conn()
     df = pd.read_sql_query("""
         SELECT action_type as "Тип действия", from_track as "Откуда", to_track as "Куда", note as "Примечание", timestamp as "Время" 
         FROM movement_history 
-        WHERE wagon_number = ?
+        WHERE wagon_number = ? AND station_id = ?
         ORDER BY timestamp ASC
-    """, conn, params=(wagon_number,))
+    """, conn, params=(wagon_number, station_id))
     conn.close()
 
     if df.empty:
         flash(f"Нет данных по вагону {wagon_number}", 'error')
-        return redirect(url_for('history.history_page'))
+        return redirect(url_for('history.history_page', station_id=station_id))
 
     action_map = {'added': 'Добавлен', 'moved': 'Перемещен', 'departed': 'Убыл', 'edit': 'Изменён'}
     df['Тип действия'] = df['Тип действия'].map(action_map).fillna(df['Тип действия'])
@@ -234,29 +239,28 @@ def export_wagon_history(wagon_number):
 
 @export_bp.route('/export_wagon_archive/<wagon_number>')
 def export_wagon_archive(wagon_number):
-    """Архивная история конкретного вагона с перепростоем (по номеру)."""
+    station_id = g.get('station_id', 1)
     conn = get_conn()
     c = conn.cursor()
-    # Находим последний архивный визит этого вагона
-    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND is_archived = 1 ORDER BY id DESC LIMIT 1", (wagon_number,))
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND is_archived = 1 AND station_id = ? ORDER BY id DESC LIMIT 1", (wagon_number, station_id))
     row = c.fetchone()
     if not row:
         flash(f"Нет архивных данных по вагону {wagon_number}", 'error')
         conn.close()
-        return redirect(url_for('history.archive_page'))
+        return redirect(url_for('history.archive_page', station_id=station_id))
     visit_id = row[0]
 
     df = pd.read_sql_query("""
         SELECT action_type as "Тип действия", from_track as "Откуда", to_track as "Куда", note as "Примечание", timestamp as "Время" 
         FROM archived_history 
-        WHERE visit_id = ?
+        WHERE visit_id = ? AND station_id = ?
         ORDER BY timestamp ASC
-    """, conn, params=(visit_id,))
+    """, conn, params=(visit_id, station_id))
     conn.close()
 
     if df.empty:
         flash(f"Нет данных по вагону {wagon_number} в архиве", 'error')
-        return redirect(url_for('history.archive_page'))
+        return redirect(url_for('history.archive_page', station_id=station_id))
 
     action_map = {'added': 'Добавлен', 'moved': 'Перемещен', 'departed': 'Убыл', 'edit': 'Изменён'}
     df['Тип действия'] = df['Тип действия'].map(action_map).fillna(df['Тип действия'])

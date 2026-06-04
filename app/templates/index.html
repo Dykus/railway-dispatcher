@@ -5,7 +5,6 @@
     <title>ЖД Диспетчерская</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script>
-        // Мгновенное применение темы до отрисовки страницы (убирает белую вспышку)
         (function() {
             const theme = localStorage.getItem('theme');
             if (theme === 'dark') {
@@ -17,23 +16,34 @@
 <body>
 <div class="container">
 <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-    <div>
-        <h1 style="margin: 0;">🚂 ЖД Диспетчерская</h1>
-        <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">Версия {{ version }}</div>
+    <div style="display: flex; align-items: center; gap: 20px;">
+        <div>
+            <h1 style="margin: 0;">🚂 ЖД Диспетчерская</h1>
+            <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">Версия {{ version }}</div>
+        </div>
+        <!-- Вкладки площадок -->
+        <div class="station-tabs" style="display: flex; gap: 10px;">
+            <a href="?station_id=1" class="btn {% if current_station_id == 1 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">
+                Основная
+            </a>
+            <a href="?station_id=2" class="btn {% if current_station_id == 2 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">
+                Вторая
+            </a>
+        </div>
     </div>
     <div class="nav-buttons" style="display: flex; gap: 10px; align-items: center;">
         <div class="total-count">📦 Всего: {{ total_wagons }}</div>
-        <a href="/history" class="btn btn-history">📜 История</a>
-        <a href="/archive" class="btn btn-archive">🗄️ Архив</a>
-        <a href="/export_excel" class="btn btn-excel">📊 Excel</a>
+        <a href="/history?station_id={{ current_station_id }}" class="btn btn-history">📜 История</a>
+        <a href="/archive?station_id={{ current_station_id }}" class="btn btn-archive">🗄️ Архив</a>
+        <a href="/export_excel?station_id={{ current_station_id }}" class="btn btn-excel">📊 Excel</a>
         {% if is_admin %}
-            <a href="/admin/changelog" class="btn btn-changelog">📋 Список изменений</a>
-            <a href="/admin/backups" class="btn btn-backup">💾 Бэкапы</a>
-            <a href="/admin/logs" class="btn" style="background:#8e44ad;">📜 Журнал действий</a>
-            <a href="/admin/ip_users" class="btn" style="background:#e67e22;">🔗 Привязка IP</a>
-            <a href="/admin/settings" class="btn" style="background:#16a085;">⚙️ Настройки</a>
+            <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn btn-changelog">📋 Список изменений</a>
+            <a href="/admin/backups?station_id={{ current_station_id }}" class="btn btn-backup">💾 Бэкапы</a>
+            <a href="/admin/logs?station_id={{ current_station_id }}" class="btn" style="background:#8e44ad;">📜 Журнал действий</a>
+            <a href="/admin/ip_users?station_id={{ current_station_id }}" class="btn" style="background:#e67e22;">🔗 Привязка IP</a>
+            <a href="/admin/settings?station_id={{ current_station_id }}" class="btn" style="background:#16a085;">⚙️ Настройки</a>
         {% endif %}
-        <a href="/help" class="btn btn-help">❓ Помощь</a>
+        <a href="/help?station_id={{ current_station_id }}" class="btn btn-help">❓ Помощь</a>
     </div>
 </div>
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -54,7 +64,7 @@
     <div class="controls">
         <div class="control-box">
             <h3>➕ Новый вагон</h3>
-            <form action="/add" method="POST" onsubmit="return validateDateTime('add')">
+            <form action="/add?station_id={{ current_station_id }}" method="POST" onsubmit="return validateDateTime('add')">
                 <input type="text" id="new-wagon-number" name="number" placeholder="№ Вагона" required onblur="fetchWagonInfo(this.value)" value="{{ add_form_data.number if add_form_data else '' }}">
                 <input type="text" id="new-wagon-owner" name="owner" placeholder="Транспортная компания" required value="{{ add_form_data.owner if add_form_data else '' }}">
                 <input type="text" id="new-wagon-org" name="organization" placeholder="Организация" required value="{{ add_form_data.org if add_form_data else '' }}">
@@ -94,7 +104,7 @@
                 <h3 style="margin:0">🔄 Переместить</h3>
                 <button type="button" onclick="location.reload()" class="refresh-btn">🔄 Обновить</button>
             </div>
-            <form action="/move" method="POST" onsubmit="return validateDateTime('move')">
+            <form action="/move?station_id={{ current_station_id }}" method="POST" onsubmit="return validateDateTime('move')">
                 <input type="text" id="wagonSearchInput" placeholder="🔍 Поиск вагона..." onkeyup="filterWagons()">
                 <select name="wagon_id" id="moveWagonSelect" required onchange="updateMoveNote()" size="5">
                     <option value="">Выберите вагон...</option>
@@ -230,7 +240,6 @@
 </div>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <script>
-    // Установка интервала обновления дашборда из настроек
     const refreshInterval = {{ refresh_interval }} * 1000;
     setInterval(updateDashboard, refreshInterval);
 </script>
