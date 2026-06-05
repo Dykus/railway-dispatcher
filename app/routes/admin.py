@@ -388,7 +388,7 @@ def settings():
 
         # ---------- СОХРАНЕНИЕ ОСНОВНЫХ НАСТРОЕК ----------
         else:
-            # === ГЛОБАЛЬНЫЕ настройки ===
+            # === ГЛОБАЛЬНЫЕ настройки (station_id=0) ===
             global_keys = [
                 'port', 'secret_key', 'backup_hour', 'backup_keep_count',
                 'remote_enabled', 'remote_path', 'remote_user', 'remote_password',
@@ -408,11 +408,9 @@ def settings():
                 set_setting(key, value, station_id=station_id)
 
             # === НАСТРОЙКИ ШТРАФОВ (только прогрессивная шкала) ===
-            # Сохраняем чекбокс прогрессивной ставки
             prog = '1' if request.form.get('overstay_progressive') else '0'
             set_setting('overstay_progressive', prog, station_id=station_id)
 
-            # Сохраняем все поля прогрессивной шкалы (они всегда видны)
             fine_keys = {
                 'overstay_threshold1': 3,
                 'overstay_rate1': 1000,

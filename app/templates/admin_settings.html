@@ -160,7 +160,7 @@
             🏭 Настройки площадки <span class="station-badge">{{ stations_list | selectattr("id", "eq", current_station_id) | map(attribute="name") | first }}</span>
         </h2>
 
-        <!-- ===== ШТРАФЫ ЗА ПЕРЕПРОСТОЙ (без базовой ставки) ===== -->
+        <!-- ===== ШТРАФЫ ЗА ПЕРЕПРОСТОЙ ===== -->
         <div class="settings-section">
             <h3>💰 Штрафы за перепростой</h3>
             <div class="form-row">
@@ -242,7 +242,7 @@
                                     onclick="deleteTrack({{ track[0] }}, '{{ track[1] }}')">🗑️</button>
                             <button type="button" class="btn btn-secondary" style="padding:2px 8px;" onclick="moveTrackUp(this)">⬆️</button>
                             <button type="button" class="btn btn-secondary" style="padding:2px 8px;" onclick="moveTrackDown(this)">⬇️</button>
-                         </td>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

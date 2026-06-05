@@ -208,6 +208,7 @@ def init_db():
         for key, val, sid in default_settings:
             c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, val, sid))
 
+    # Эти настройки больше не должны быть глобальными, но для совместимости добавим
     overstay_defaults = [
         ('overstay_progressive', '0'),
         ('overstay_rate_base', '0'),
@@ -266,6 +267,7 @@ def init_db():
 
     migrate_to_visits()
     migrate_to_stations()
+    migrate_fine_settings()   # <-- НОВАЯ АВТОМАТИЧЕСКАЯ МИГРАЦИЯ НАСТРОЕК ШТРАФОВ
 
 
 def migrate_to_visits():
@@ -335,6 +337,61 @@ def migrate_to_stations():
     conn.close()
 
 
+# ==================== МИГРАЦИЯ НАСТРОЕК ШТРАФОВ (АВТОМАТИЧЕСКАЯ) ====================
+def migrate_fine_settings():
+    """
+    Автоматически приводит настройки штрафов в порядок:
+    - удаляет глобальные настройки (station_id = 0) – они больше не нужны
+    - для каждой площадки создаёт недостающие настройки с корректными значениями
+    - исправляет неверные пороги (порог2 > порог1)
+    """
+    conn = get_conn()
+    c = conn.cursor()
+
+    # 1. Удаляем все глобальные настройки штрафов (station_id = 0)
+    c.execute("DELETE FROM app_settings WHERE key LIKE 'overstay_%' AND station_id = 0")
+    print("[МИГРАЦИЯ] Удалены глобальные настройки штрафов (station_id=0)")
+
+    # 2. Получаем список всех площадок
+    c.execute("SELECT id FROM stations")
+    stations = [row[0] for row in c.fetchall()]
+    if not stations:
+        stations = [1, 2]  # на случай, если таблица stations пуста (но такого быть не должно)
+
+    # 3. Для каждой площадки добавляем отсутствующие настройки (INSERT OR IGNORE)
+    default_settings = {
+        'overstay_progressive': '0',
+        'overstay_threshold1': '3',
+        'overstay_rate1': '1000',
+        'overstay_threshold2': '7',
+        'overstay_rate2': '1500',
+        'overstay_rate3': '2000'
+    }
+
+    for sid in stations:
+        for key, default_val in default_settings.items():
+            # INSERT OR IGNORE не вызовет ошибку, если запись уже есть
+            c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
+                      (key, default_val, sid))
+
+        # Дополнительная проверка: корректность порогов (порог2 должен быть больше порога1)
+        c.execute("SELECT value FROM app_settings WHERE key = 'overstay_threshold1' AND station_id = ?", (sid,))
+        row1 = c.fetchone()
+        c.execute("SELECT value FROM app_settings WHERE key = 'overstay_threshold2' AND station_id = ?", (sid,))
+        row2 = c.fetchone()
+        if row1 and row2:
+            th1 = int(row1[0])
+            th2 = int(row2[0])
+            if th2 <= th1:
+                print(f"[МИГРАЦИЯ] Для площадки {sid} пороги некорректны: {th1} и {th2}. Устанавливаем 3 и 7")
+                c.execute("UPDATE app_settings SET value = '3' WHERE key = 'overstay_threshold1' AND station_id = ?", (sid,))
+                c.execute("UPDATE app_settings SET value = '7' WHERE key = 'overstay_threshold2' AND station_id = ?", (sid,))
+
+    conn.commit()
+    conn.close()
+    print("[МИГРАЦИЯ] Настройки штрафов приведены в порядок.")
+
+
 # ===== ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ =====
 def get_setting(key, default=None, station_id=None):
     conn = get_conn()
@@ -346,7 +403,7 @@ def get_setting(key, default=None, station_id=None):
         if row:
             conn.close()
             return row[0]
-        # Если нет, ищем глобальную (station_id = 0)
+        # Если нет, ищем глобальную (station_id = 0) – но их больше не должно быть для штрафов
         c.execute("SELECT value FROM app_settings WHERE key = ? AND station_id = 0", (key,))
         row = c.fetchone()
         if row:
@@ -1156,7 +1213,8 @@ def calculate_overstay(visit_id):
             if remaining > 0:
                 amount += remaining * rate3
     else:
-        base_rate = float(get_setting('overstay_rate_base', '0', station_id))
+        # Фиксированная ставка: используем overstay_rate1 (ставка до порога)
+        base_rate = float(get_setting('overstay_rate1', '1000', station_id))
         amount = overstay * base_rate
 
     conn.close()
