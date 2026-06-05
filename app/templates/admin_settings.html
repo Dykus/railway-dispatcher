@@ -32,6 +32,8 @@
         .btn-success { background: #27ae60; }
         .btn-danger { background: #e74c3c; }
         .btn-secondary { background: #95a5a6; }
+        .global-badge { display: inline-block; background: #f39c12; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 10px; vertical-align: middle; }
+        .station-badge { display: inline-block; background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 10px; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -40,8 +42,9 @@
         <div style="display: flex; align-items: center; gap: 20px;">
             <h1 style="margin: 0;">⚙️ Настройки приложения</h1>
             <div class="station-tabs" style="display: flex; gap: 10px;">
-                <a href="?station_id=1" class="btn {% if current_station_id == 1 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Основная</a>
-                <a href="?station_id=2" class="btn {% if current_station_id == 2 %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">Вторая</a>
+                {% for station in stations_list %}
+                <a href="?station_id={{ station.id }}" class="btn {% if current_station_id == station.id %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">{{ station.name }}</a>
+                {% endfor %}
             </div>
         </div>
         <div class="nav-buttons">
@@ -63,6 +66,27 @@
 
     <form method="post" id="mainSettingsForm">
         <input type="hidden" name="station_id" value="{{ current_station_id }}">
+
+        <!-- ================================================================ -->
+        <!--                    ГЛОБАЛЬНЫЕ НАСТРОЙКИ                          -->
+        <!-- ================================================================ -->
+        <h2 style="color: #f39c12; border-bottom: 2px solid #f39c12; padding-bottom: 5px; margin-top: 30px;">
+            🌐 Глобальные настройки <span class="global-badge">общие для всех площадок</span>
+        </h2>
+
+        <!-- ===== УПРАВЛЕНИЕ ПЛОЩАДКАМИ ===== -->
+        <div class="settings-section">
+            <h3>🏭 Названия площадок</h3>
+            {% for station in stations_list %}
+            <div class="form-row" style="margin-bottom: 10px;">
+                <label>Площадка {{ station.id }}:</label>
+                <input type="text" value="{{ station.name }}" data-station-id="{{ station.id }}" class="station-rename-input" style="width: 300px;">
+                <button type="button" class="btn btn-success" style="margin-left: 10px; padding: 6px 12px;" onclick="renameStation({{ station.id }}, this.previousElementSibling.value)">Сохранить</button>
+            </div>
+            {% endfor %}
+            <div class="hint">Названия отображаются на вкладках во всём интерфейсе.</div>
+        </div>
+
         <!-- ===== ОСНОВНЫЕ ===== -->
         <div class="settings-section">
             <h3>📌 Основные</h3>
@@ -115,12 +139,32 @@
             </div>
         </div>
 
+        <!-- ===== ЛОГИРОВАНИЕ ===== -->
+        <div class="settings-section">
+            <h3>📝 Логирование</h3>
+            <div class="form-row">
+                <label>Макс. размер лога (МБ):</label>
+                <input type="number" name="log_max_mb" value="{{ settings.get('log_max_mb', '5') }}" min="1" max="100">
+            </div>
+            <div class="form-row">
+                <label>Количество файлов ротации:</label>
+                <input type="number" name="log_backup_count" value="{{ settings.get('log_backup_count', '5') }}" min="1" max="20">
+            </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!--                  НАСТРОЙКИ ТЕКУЩЕЙ ПЛОЩАДКИ                       -->
+        <!-- ================================================================ -->
+        <h2 style="color: #3498db; border-bottom: 2px solid #3498db; padding-bottom: 5px; margin-top: 30px;">
+            🏭 Настройки площадки <span class="station-badge">{{ stations_list | selectattr("id", "eq", current_station_id) | map(attribute="name") | first }}</span>
+        </h2>
+
         <!-- ===== ШТРАФЫ ЗА ПЕРЕПРОСТОЙ ===== -->
         <div class="settings-section">
             <h3>💰 Штрафы за перепростой</h3>
             <div class="form-row">
                 <label>
-                    <input type="checkbox" name="overstay_progressive" value="1" {% if settings.get('overstay_progressive', '0') == '1' %}checked{% endif %}> Прогрессивная ставка
+                    <input type="checkbox" name="overstay_progressive" id="overstayProgressive" value="1" {% if settings.get('overstay_progressive', '0') == '1' %}checked{% endif %}> Прогрессивная ставка
                 </label>
             </div>
             <div class="form-row">
@@ -148,19 +192,6 @@
             <div class="hint">Если прогрессивная ставка включена, используются пороговые значения, иначе – базовая ставка.</div>
         </div>
 
-        <!-- ===== ЛОГИРОВАНИЕ ===== -->
-        <div class="settings-section">
-            <h3>📝 Логирование</h3>
-            <div class="form-row">
-                <label>Макс. размер лога (МБ):</label>
-                <input type="number" name="log_max_mb" value="{{ settings.get('log_max_mb', '5') }}" min="1" max="100">
-            </div>
-            <div class="form-row">
-                <label>Количество файлов ротации:</label>
-                <input type="number" name="log_backup_count" value="{{ settings.get('log_backup_count', '5') }}" min="1" max="20">
-            </div>
-        </div>
-
         <!-- ===== ИНТЕРФЕЙС ===== -->
         <div class="settings-section">
             <h3>🖥️ Интерфейс</h3>
@@ -182,7 +213,7 @@
                 <input type="number" name="wagon_spacing" value="{{ settings.get('wagon_spacing', '50.0') }}" step="0.1" min="0">
             </div>
 
-            <h4 style="margin-top:25px;">Список путей (площадка {{ current_station_id }})</h4>
+            <h4 style="margin-top:25px;">Список путей</h4>
             <table class="track-table" id="tracksTable">
                 <thead>
                     <tr>
@@ -361,6 +392,35 @@
             alert('Ошибка сети: ' + error);
         });
     }
+
+    function renameStation(stationId, newName) {
+        fetch('/admin/rename_station', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'station_id=' + stationId + '&name=' + encodeURIComponent(newName)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Название обновлено. Обновите страницу, чтобы увидеть изменения.');
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
+        });
+    }
+</script>
+
+<!-- СКРИПТ ПЕРЕКЛЮЧЕНИЯ ПРОГРЕССИВНЫХ ПОЛЕЙ -->
+<script>
+    (function() {
+        var checkbox = document.getElementById('overstayProgressive');
+        var fields = document.getElementById('progressiveFields');
+        if (checkbox && fields) {
+            checkbox.onchange = function() {
+                fields.style.display = this.checked ? 'block' : 'none';
+            };
+        }
+    })();
 </script>
 </body>
 </html>

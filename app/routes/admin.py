@@ -209,7 +209,7 @@ def export_logs_excel():
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"ActionLog_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 
-# ==================== УПРАВЛЕНИЕ IP (глобальное, без площадок) ====================
+# ==================== УПРАВЛЕНИЕ IP (глобальное) ====================
 @admin_bp.route('/ip_users', methods=['GET', 'POST'])
 def manage_ip_users():
     if request.user_role != 'admin':
@@ -398,12 +398,13 @@ def settings():
             ]
             for key in keys:
                 value = request.form.get(key, '')
-                set_setting(key, value)
-            set_setting('overstay_progressive', '1' if request.form.get('overstay_progressive') else '0')
+                set_setting(key, value, station_id)
+            set_setting('overstay_progressive', '1' if request.form.get('overstay_progressive') else '0', station_id)
+            set_setting('remote_enabled', '1' if request.form.get('remote_enabled') else '0', 0)
             flash('Настройки сохранены', 'success')
             return redirect(url_for('admin.settings', station_id=station_id))
 
-    settings_dict = get_all_settings()
+    settings_dict = get_all_settings(station_id)
     tracks = get_all_tracks(station_id)
     return render_template('admin_settings.html', settings=settings_dict, tracks=tracks)
 
@@ -432,3 +433,21 @@ def save_tracks_order():
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
+
+
+# ==================== ПЕРЕИМЕНОВАНИЕ ПЛОЩАДОК ====================
+@admin_bp.route('/rename_station', methods=['POST'])
+def rename_station():
+    if request.user_role != 'admin':
+        return jsonify({"error": "Доступ запрещён"}), 403
+    station_id = request.form.get('station_id')
+    new_name = request.form.get('name', '').strip()
+    if not station_id or not new_name:
+        return jsonify({"error": "Неверные данные"}), 400
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("UPDATE stations SET name = ? WHERE id = ?", (new_name, station_id))
+    conn.commit()
+    conn.close()
+    log_action('station_rename', details=f"Площадка id={station_id} переименована в '{new_name}'")
+    return jsonify({"success": True, "message": "Название обновлено"})

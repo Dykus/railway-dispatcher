@@ -31,7 +31,6 @@ def create_app():
 
     @app.before_request
     def before_request_check():
-        # Определяем station_id
         try:
             station_id = int(request.args.get('station_id', 1))
         except (ValueError, TypeError):
@@ -96,8 +95,17 @@ def create_app():
                 return False, role, "Маршрут не доступен."
 
     @app.context_processor
-    def inject_station_id():
-        return dict(current_station_id=g.get('station_id', 1))
+    def inject_globals():
+        from app.models import get_conn
+        conn = get_conn()
+        c = conn.cursor()
+        c.execute("SELECT id, name, code FROM stations ORDER BY id")
+        stations_list = [{'id': row[0], 'name': row[1], 'code': row[2]} for row in c.fetchall()]
+        conn.close()
+        return dict(
+            current_station_id=g.get('station_id', 1),
+            stations_list=stations_list
+        )
 
     from app.routes.main import main_bp
     from app.routes.history import history_bp

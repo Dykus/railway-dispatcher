@@ -492,25 +492,39 @@ def test_restore_backup_reverts_database(client):
 
 
 def test_settings_page_and_update(client):
+    """Страница настроек доступна, изменение параметра сохраняется в БД."""
     print("🚀 Запуск теста: страница настроек и изменение параметра")
+
+    print("  Шаг 1: Запрашиваем /admin/settings...")
     resp = client.get('/admin/settings?station_id=1')
     assert resp.status_code == 200
     html = resp.data.decode('utf-8')
     assert 'Настройки приложения' in html
     print("    ✓ Страница настроек загружена")
+
+    print("  Шаг 2: Отправляем новые настройки (refresh_interval=10)...")
     resp = client.post('/admin/settings?station_id=1', data={
-        'refresh_interval': '10', 'port': '5000', 'secret_key': 'testkey',
-        'backup_hour': '3', 'backup_keep_count': '30',
-        'log_max_mb': '5', 'log_backup_count': '5',
-        'default_wagon_length': '10.0', 'wagon_spacing': '50.0'
+        'refresh_interval': '10',
+        'port': '5000',
+        'secret_key': 'testkey',
+        'backup_hour': '3',
+        'backup_keep_count': '30',
+        'log_max_mb': '5',
+        'log_backup_count': '5',
+        'default_wagon_length': '10.0',
+        'wagon_spacing': '50.0'
     }, follow_redirects=True)
     assert resp.status_code == 200
     assert 'Настройки сохранены' in resp.data.decode('utf-8')
     print("    ✓ Сообщение об успехе получено")
+
     from app.models import get_setting
-    interval = get_setting('refresh_interval', '5')
+    # Теперь get_setting принимает station_id, передаём 1
+    interval = get_setting('refresh_interval', '5', station_id=1)
     assert interval == '10', f"refresh_interval должен стать 10, а равен {interval}"
     print(f"    ✓ refresh_interval сохранён как {interval}")
+
+    print("  Шаг 3: Проверяем, что viewer не может зайти в настройки...")
     from app.models import get_conn
     conn = get_conn()
     c = conn.cursor()

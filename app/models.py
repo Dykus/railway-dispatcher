@@ -48,13 +48,16 @@ def init_db():
                     visit_id INTEGER DEFAULT NULL,
                     station_id INTEGER DEFAULT 1
                 )''')
-    # Добавляем поля station_id, если их ещё нет (для баз, созданных до миграции)
     try:
         c.execute("ALTER TABLE movement_history ADD COLUMN station_id INTEGER DEFAULT 1")
     except:
         pass
     try:
         c.execute("ALTER TABLE archived_history ADD COLUMN station_id INTEGER DEFAULT 1")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE archived_history ADD COLUMN visit_id INTEGER DEFAULT NULL")
     except:
         pass
 
@@ -68,13 +71,11 @@ def init_db():
                     station_id INTEGER DEFAULT 1,
                     UNIQUE(name, station_id)
                 )''')
-    # Если таблица уже существовала без поля station_id, добавляем его (не пересоздаём!)
     try:
         c.execute("ALTER TABLE tracks ADD COLUMN station_id INTEGER DEFAULT 1")
     except:
         pass
 
-    # Остальные таблицы
     c.execute('''CREATE TABLE IF NOT EXISTS wagons (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, 
                     wagon_number TEXT UNIQUE, length REAL, cargo_type TEXT, owner TEXT, 
@@ -144,31 +145,68 @@ def init_db():
         c.execute("ALTER TABLE ip_users ADD COLUMN access_allowed INTEGER DEFAULT 0")
     except: pass
     
-    # ===== ТАБЛИЦА НАСТРОЕК =====
+    # ===== ТАБЛИЦА НАСТРОЕК (ПРИНУДИТЕЛЬНАЯ МИГРАЦИЯ) =====
+    # Сначала создаём таблицу, если её нет
     c.execute('''CREATE TABLE IF NOT EXISTS app_settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
+                    key TEXT NOT NULL,
+                    value TEXT,
+                    station_id INTEGER DEFAULT 0,
+                    PRIMARY KEY (key, station_id)
                 )''')
     
+    # Проверяем, есть ли поле station_id (для старых баз)
+    c.execute("PRAGMA table_info(app_settings)")
+    cols = [col[1] for col in c.fetchall()]
+    has_station_id = 'station_id' in cols
+    
+    # Проверяем правильность первичного ключа
+    c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='app_settings'")
+    create_sql = c.fetchone()
+    if create_sql:
+        create_sql = create_sql[0]
+        correct_pk = 'PRIMARY KEY' in create_sql.upper() and 'station_id' in create_sql and 'key' in create_sql
+    else:
+        correct_pk = False
+    
+    # Если структура неправильная – пересоздаём
+    if not has_station_id or not correct_pk:
+        print("[МИГРАЦИЯ] Исправление таблицы app_settings...")
+        c.execute("SELECT key, value, COALESCE(station_id, 0) FROM app_settings")
+        old_data = c.fetchall()
+        c.execute("DROP TABLE IF EXISTS app_settings")
+        c.execute('''CREATE TABLE app_settings (
+                        key TEXT NOT NULL,
+                        value TEXT,
+                        station_id INTEGER DEFAULT 0,
+                        PRIMARY KEY (key, station_id)
+                    )''')
+        for key, value, sid in old_data:
+            c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
+                      (key, value, sid))
+        conn.commit()
+        print("[МИГРАЦИЯ] Таблица app_settings исправлена.")
+    
+    # Заполняем значения по умолчанию, если таблица пуста
     c.execute("SELECT COUNT(*) FROM app_settings")
     if c.fetchone()[0] == 0:
         default_settings = [
-            ('port', '5000'),
-            ('secret_key', 'rail_app_secret_key_change_me'),
-            ('backup_hour', '3'),
-            ('backup_keep_count', '30'),
-            ('remote_enabled', '0'),
-            ('remote_path', ''),
-            ('remote_user', ''),
-            ('remote_password', ''),
-            ('log_max_mb', '5'),
-            ('log_backup_count', '5'),
-            ('refresh_interval', '5'),
-            ('theme', 'light'),
-            ('default_wagon_length', '10.0'),
-            ('wagon_spacing', '50.0')
+            ('port', '5000', 0),
+            ('secret_key', 'rail_app_secret_key_change_me', 0),
+            ('backup_hour', '3', 0),
+            ('backup_keep_count', '30', 0),
+            ('remote_enabled', '0', 0),
+            ('remote_path', '', 0),
+            ('remote_user', '', 0),
+            ('remote_password', '', 0),
+            ('log_max_mb', '5', 0),
+            ('log_backup_count', '5', 0),
+            ('refresh_interval', '5', 0),
+            ('theme', 'light', 0),
+            ('default_wagon_length', '10.0', 0),
+            ('wagon_spacing', '50.0', 0)
         ]
-        c.executemany("INSERT INTO app_settings (key, value) VALUES (?, ?)", default_settings)
+        for key, val, sid in default_settings:
+            c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, val, sid))
 
     overstay_defaults = [
         ('overstay_progressive', '0'),
@@ -180,7 +218,7 @@ def init_db():
         ('overstay_rate3', '2000')
     ]
     for key, val in overstay_defaults:
-        c.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", (key, val))
+        c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, val, 0))
     
     c.execute("UPDATE ip_users SET role='admin', access_allowed=1 WHERE is_admin=1 AND (role='dispatcher' OR role='')")
     c.execute("UPDATE ip_users SET access_allowed=1 WHERE is_admin=1")
@@ -189,12 +227,11 @@ def init_db():
     c.execute("UPDATE tracks SET name = 'Резерв' WHERE name = 'Очередь (Буфер)'")
     conn.commit()
     
-    # Станции и пути (первичное заполнение)
+    # Станции и пути
     c.execute("SELECT count(*) FROM stations")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO stations (id, name, code) VALUES (1, 'Основная', 'main')")
         c.execute("INSERT INTO stations (id, name, code) VALUES (2, 'Вторая', 'second')")
-        # Пути для основной площадки
         c.execute("SELECT count(*) FROM tracks WHERE station_id = 1")
         if c.fetchone()[0] == 0:
             data = [
@@ -208,7 +245,6 @@ def init_db():
                 (8, 'Резерв', 2000.0, 'normal', 8, 1)
             ]
             c.executemany("INSERT OR IGNORE INTO tracks (id, name, total_length, track_type, sort_order, station_id) VALUES (?, ?, ?, ?, ?, ?)", data)
-        # Пути для второй площадки
         c.execute("SELECT count(*) FROM tracks WHERE station_id = 2")
         if c.fetchone()[0] == 0:
             data2 = [
@@ -233,24 +269,30 @@ def init_db():
 
 
 def migrate_to_visits():
+    """Переносит данные из wagons в wagon_visits и добавляет visit_id в archived_history."""
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM wagon_visits")
-    if c.fetchone()[0] > 0:
-        conn.close()
-        print("[OK] Данные уже перенесены в wagon_visits.")
-        return
 
-    print("[МИГРАЦИЯ] Перенос данных из wagons в wagon_visits...")
-    c.execute("""
-        INSERT INTO wagon_visits (wagon_number, arrival_time, departure_time, local_departure_time,
-                                 is_archived, track_id, start_pos, cargo_type, owner, organization, length, status, visit_count, station_id)
-        SELECT wagon_number, arrival_time, departure_time, local_departure_time,
-               is_archived, track_id, start_pos, cargo_type, owner, organization, length, status, visit_count, 1
-        FROM wagons
-    """)
-    conn.commit()
-    print(f"[МИГРАЦИЯ] Перенесено {c.rowcount} записей.")
+    try:
+        c.execute("ALTER TABLE archived_history ADD COLUMN visit_id INTEGER DEFAULT NULL")
+        print("[МИГРАЦИЯ] Поле visit_id добавлено в archived_history.")
+    except:
+        pass
+
+    c.execute("SELECT COUNT(*) FROM wagon_visits")
+    if c.fetchone()[0] == 0:
+        print("[МИГРАЦИЯ] Перенос данных из wagons в wagon_visits...")
+        c.execute("""
+            INSERT INTO wagon_visits (wagon_number, arrival_time, departure_time, local_departure_time,
+                                     is_archived, track_id, start_pos, cargo_type, owner, organization, length, status, visit_count, station_id)
+            SELECT wagon_number, arrival_time, departure_time, local_departure_time,
+                   is_archived, track_id, start_pos, cargo_type, owner, organization, length, status, visit_count, 1
+            FROM wagons
+        """)
+        conn.commit()
+        print(f"[МИГРАЦИЯ] Перенесено {c.rowcount} записей.")
+    else:
+        print("[OK] Данные уже перенесены в wagon_visits.")
 
     print("[МИГРАЦИЯ] Привязка archived_history к визитам...")
     c.execute("""
@@ -272,6 +314,7 @@ def migrate_to_visits():
 
 
 def migrate_to_stations():
+    """Добавляет station_id в таблицы, если ещё нет, и заполняет значениями по умолчанию."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("PRAGMA table_info(tracks)")
@@ -293,21 +336,38 @@ def migrate_to_stations():
 
 
 # ===== ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ =====
-def get_setting(key, default=None):
+def get_setting(key, default=None, station_id=None):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
-    row = c.fetchone()
-    conn.close()
-    if row:
-        return row[0]
-    return default
+    if station_id is not None:
+        # Сначала ищем настройку для конкретной площадки
+        c.execute("SELECT value FROM app_settings WHERE key = ? AND station_id = ?", (key, station_id))
+        row = c.fetchone()
+        if row:
+            conn.close()
+            return row[0]
+        # Если нет, ищем глобальную (station_id = 0)
+        c.execute("SELECT value FROM app_settings WHERE key = ? AND station_id = 0", (key,))
+        row = c.fetchone()
+        if row:
+            conn.close()
+            return row[0]
+        conn.close()
+        return default
+    else:
+        c.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
+        row = c.fetchone()
+        conn.close()
+        if row:
+            return row[0]
+        return default
 
 
-def set_setting(key, value):
+def set_setting(key, value, station_id=0):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", (key, value))
+    c.execute("DELETE FROM app_settings WHERE key = ? AND station_id = ?", (key, station_id))
+    c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, value, station_id))
     conn.commit()
     conn.close()
 
@@ -315,13 +375,23 @@ def set_setting(key, value):
 def get_all_settings(station_id=None):
     conn = get_conn()
     c = conn.cursor()
-    if station_id:
-        c.execute("SELECT key, value FROM app_settings WHERE station_id = ? OR station_id IS NULL", (station_id,))
+    if station_id is not None:
+        # 1. Получаем ВСЕ глобальные настройки (station_id = 0)
+        c.execute("SELECT key, value FROM app_settings WHERE station_id = 0")
+        global_settings = dict(c.fetchall())
+        # 2. Получаем настройки для конкретной площадки
+        c.execute("SELECT key, value FROM app_settings WHERE station_id = ?", (station_id,))
+        specific = dict(c.fetchall())
+        # 3. Объединяем: специфичные перезаписывают глобальные
+        result = global_settings.copy()
+        result.update(specific)
+        conn.close()
+        return result
     else:
         c.execute("SELECT key, value FROM app_settings")
-    rows = c.fetchall()
-    conn.close()
-    return dict(rows)
+        rows = c.fetchall()
+        conn.close()
+        return dict(rows)
 
 
 def clean_action_log(station_id=None):
@@ -1023,11 +1093,11 @@ def get_grouped_archive_history(station_id=1):
     return result
 
 
-# ==================== РАСЧЁТ ПЕРЕПРОСТОЯ (ПО ВИЗИТУ) ====================
+# ==================== РАСЧЁТ ПЕРЕПРОСТОЯ (ПО ВИЗИТУ, С УЧЁТОМ ПЛОЩАДКИ) ====================
 def calculate_overstay(visit_id):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("""SELECT arrival_time, departure_time,
+    c.execute("""SELECT arrival_time, departure_time, station_id,
                  (SELECT MAX(timestamp) FROM archived_history WHERE visit_id = ?) as last_ts
                  FROM wagon_visits WHERE id = ? AND is_archived = 1""",
               (visit_id, visit_id))
@@ -1036,7 +1106,7 @@ def calculate_overstay(visit_id):
         conn.close()
         return 0, 0.0
 
-    arrival_str, global_deadline_str, last_ts_str = row
+    arrival_str, global_deadline_str, station_id, last_ts_str = row
     if not arrival_str or not last_ts_str:
         conn.close()
         return 0, 0.0
@@ -1068,13 +1138,13 @@ def calculate_overstay(visit_id):
         conn.close()
         return 0, 0.0
 
-    progressive = get_setting('overstay_progressive', '0') == '1'
+    progressive = get_setting('overstay_progressive', '0', station_id) == '1'
     if progressive:
-        threshold1 = int(get_setting('overstay_threshold1', '3'))
-        threshold2 = int(get_setting('overstay_threshold2', '7'))
-        rate1 = float(get_setting('overstay_rate1', '1000'))
-        rate2 = float(get_setting('overstay_rate2', '1500'))
-        rate3 = float(get_setting('overstay_rate3', '2000'))
+        threshold1 = int(get_setting('overstay_threshold1', '3', station_id))
+        threshold2 = int(get_setting('overstay_threshold2', '7', station_id))
+        rate1 = float(get_setting('overstay_rate1', '1000', station_id))
+        rate2 = float(get_setting('overstay_rate2', '1500', station_id))
+        rate3 = float(get_setting('overstay_rate3', '2000', station_id))
 
         days1 = min(overstay, threshold1)
         amount = days1 * rate1
@@ -1086,7 +1156,7 @@ def calculate_overstay(visit_id):
             if remaining > 0:
                 amount += remaining * rate3
     else:
-        base_rate = float(get_setting('overstay_rate_base', '0'))
+        base_rate = float(get_setting('overstay_rate_base', '0', station_id))
         amount = overstay * base_rate
 
     conn.close()
