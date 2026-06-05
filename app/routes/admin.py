@@ -14,11 +14,10 @@ import pandas as pd
 from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from config import BACKUP_DIR, DB_NAME, CHANGELOG_PATH, APP_VERSION
+from config import BACKUP_DIR, DB_NAME, CHANGELOG_PATH
 from app.models import (
     get_conn, get_all_settings, set_setting,
-    get_all_tracks, add_track, update_track, delete_track,
-    move_track_up, move_track_down
+    get_all_tracks, add_track, update_track, delete_track
 )
 from app.utils import log_action, parse_flexible_date
 
@@ -209,7 +208,7 @@ def export_logs_excel():
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"ActionLog_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 
-# ==================== УПРАВЛЕНИЕ IP (глобальное) ====================
+# ==================== УПРАВЛЕНИЕ IP ====================
 @admin_bp.route('/ip_users', methods=['GET', 'POST'])
 def manage_ip_users():
     if request.user_role != 'admin':
@@ -244,7 +243,7 @@ def manage_ip_users():
     return render_template('admin_ip_users.html', rows=rows)
 
 
-# ==================== РЕДАКТИРОВАНИЕ ВАГОНА И ИСТОРИИ ====================
+# ==================== РЕДАКТИРОВАНИЕ ====================
 @admin_bp.route('/edit_wagon/<int:wagon_id>', methods=['POST'])
 def edit_wagon_route(wagon_id):
     if request.user_role not in ('supervisor', 'admin'):
@@ -386,24 +385,53 @@ def settings():
                 success, msg = delete_track(track_id)
                 flash(msg, 'success' if success else 'error')
             return redirect(url_for('admin.settings', station_id=station_id))
-        # Сохранение всех настроек
+
+        # ---------- СОХРАНЕНИЕ ОСНОВНЫХ НАСТРОЕК ----------
         else:
-            keys = [
+            # === ГЛОБАЛЬНЫЕ настройки ===
+            global_keys = [
                 'port', 'secret_key', 'backup_hour', 'backup_keep_count',
-                'remote_path', 'remote_user', 'remote_password',
-                'log_max_mb', 'log_backup_count', 'refresh_interval',
-                'theme', 'default_wagon_length', 'wagon_spacing',
-                'overstay_rate_base', 'overstay_threshold1', 'overstay_rate1',
-                'overstay_threshold2', 'overstay_rate2', 'overstay_rate3'
+                'remote_enabled', 'remote_path', 'remote_user', 'remote_password',
+                'log_max_mb', 'log_backup_count'
             ]
-            for key in keys:
+            for key in global_keys:
+                if key == 'remote_enabled':
+                    value = '1' if request.form.get(key) else '0'
+                else:
+                    value = request.form.get(key, '')
+                set_setting(key, value, station_id=0)
+
+            # === ЛОКАЛЬНЫЕ настройки ===
+            local_keys = ['refresh_interval', 'theme', 'default_wagon_length', 'wagon_spacing']
+            for key in local_keys:
                 value = request.form.get(key, '')
-                set_setting(key, value, station_id)
-            set_setting('overstay_progressive', '1' if request.form.get('overstay_progressive') else '0', station_id)
-            set_setting('remote_enabled', '1' if request.form.get('remote_enabled') else '0', 0)
+                set_setting(key, value, station_id=station_id)
+
+            # === НАСТРОЙКИ ШТРАФОВ (только прогрессивная шкала) ===
+            # Сохраняем чекбокс прогрессивной ставки
+            prog = '1' if request.form.get('overstay_progressive') else '0'
+            set_setting('overstay_progressive', prog, station_id=station_id)
+
+            # Сохраняем все поля прогрессивной шкалы (они всегда видны)
+            fine_keys = {
+                'overstay_threshold1': 3,
+                'overstay_rate1': 1000,
+                'overstay_threshold2': 7,
+                'overstay_rate2': 1500,
+                'overstay_rate3': 2000
+            }
+            for key, default in fine_keys.items():
+                raw = request.form.get(key, '')
+                if raw == '':
+                    value = str(default)
+                else:
+                    value = raw
+                set_setting(key, value, station_id=station_id)
+
             flash('Настройки сохранены', 'success')
             return redirect(url_for('admin.settings', station_id=station_id))
 
+    # GET – отображаем страницу
     settings_dict = get_all_settings(station_id)
     tracks = get_all_tracks(station_id)
     return render_template('admin_settings.html', settings=settings_dict, tracks=tracks)
@@ -414,11 +442,9 @@ def settings():
 def save_tracks_order():
     if request.user_role != 'admin':
         return jsonify({"error": "Доступ запрещён"}), 403
-
     data = request.get_json()
     if not data or 'order' not in data:
         return jsonify({"error": "Неверные данные"}), 400
-
     order = data['order']
     conn = get_conn()
     c = conn.cursor()

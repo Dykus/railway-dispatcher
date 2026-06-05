@@ -98,7 +98,8 @@
 
             <div class="form-row">
                 <label>Секретный ключ:</label>
-                <input type="text" name="secret_key" value="{{ settings.get('secret_key', '') }}" style="width:400px;">
+                <input type="password" name="secret_key" id="secret_key" value="{{ settings.get('secret_key', '') }}" style="width:400px;">
+                <button type="button" onclick="toggleSecretKey()" style="margin-left:10px;">👁️</button>
                 <button type="button" onclick="generateKey()" style="margin-left:10px;">🔄 Сгенерировать</button>
             </div>
             <div class="hint">После смены все пользователи будут разлогинены</div>
@@ -159,7 +160,7 @@
             🏭 Настройки площадки <span class="station-badge">{{ stations_list | selectattr("id", "eq", current_station_id) | map(attribute="name") | first }}</span>
         </h2>
 
-        <!-- ===== ШТРАФЫ ЗА ПЕРЕПРОСТОЙ ===== -->
+        <!-- ===== ШТРАФЫ ЗА ПЕРЕПРОСТОЙ (без базовой ставки) ===== -->
         <div class="settings-section">
             <h3>💰 Штрафы за перепростой</h3>
             <div class="form-row">
@@ -168,28 +169,28 @@
                 </label>
             </div>
             <div class="form-row">
-                <label>Базовая ставка (руб/сут):</label>
-                <input type="number" name="overstay_rate_base" value="{{ settings.get('overstay_rate_base', '0') }}" step="0.01" min="0">
+                <label>Порог 1 (сут):</label>
+                <input type="number" name="overstay_threshold1" value="{{ settings.get('overstay_threshold1', '3') }}" min="1">
+                <label style="margin-left:20px;">Ставка до порога (руб/сут):</label>
+                <input type="number" name="overstay_rate1" value="{{ settings.get('overstay_rate1', '1000') }}" step="0.01" min="0">
             </div>
-            <div id="progressiveFields" style="display: {% if settings.get('overstay_progressive', '0') == '1' %}block{% else %}none{% endif %};">
-                <div class="form-row">
-                    <label>Порог 1 (сут):</label>
-                    <input type="number" name="overstay_threshold1" value="{{ settings.get('overstay_threshold1', '3') }}" min="1">
-                    <label style="margin-left:20px;">Ставка до порога (руб/сут):</label>
-                    <input type="number" name="overstay_rate1" value="{{ settings.get('overstay_rate1', '1000') }}" step="0.01" min="0">
-                </div>
-                <div class="form-row">
-                    <label>Порог 2 (сут):</label>
-                    <input type="number" name="overstay_threshold2" value="{{ settings.get('overstay_threshold2', '7') }}" min="1">
-                    <label style="margin-left:20px;">Ставка от порога 1 до порога 2 (руб/сут):</label>
-                    <input type="number" name="overstay_rate2" value="{{ settings.get('overstay_rate2', '1500') }}" step="0.01" min="0">
-                </div>
-                <div class="form-row">
-                    <label>Ставка свыше порога 2 (руб/сут):</label>
-                    <input type="number" name="overstay_rate3" value="{{ settings.get('overstay_rate3', '2000') }}" step="0.01" min="0">
-                </div>
+            <div class="form-row">
+                <label>Порог 2 (сут):</label>
+                <input type="number" name="overstay_threshold2" value="{{ settings.get('overstay_threshold2', '7') }}" min="1">
+                <label style="margin-left:20px;">Ставка от порога 1 до порога 2 (руб/сут):</label>
+                <input type="number" name="overstay_rate2" value="{{ settings.get('overstay_rate2', '1500') }}" step="0.01" min="0">
             </div>
-            <div class="hint">Если прогрессивная ставка включена, используются пороговые значения, иначе – базовая ставка.</div>
+            <div class="form-row">
+                <label>Ставка свыше порога 2 (руб/сут):</label>
+                <input type="number" name="overstay_rate3" value="{{ settings.get('overstay_rate3', '2000') }}" step="0.01" min="0">
+            </div>
+            <div class="hint">
+                {% if settings.get('overstay_progressive', '0') == '1' %}
+                    Используются пороговые значения.
+                {% else %}
+                    Используется фиксированная ставка (значение «Ставка до порога»).
+                {% endif %}
+            </div>
         </div>
 
         <!-- ===== ИНТЕРФЕЙС ===== -->
@@ -241,7 +242,7 @@
                                     onclick="deleteTrack({{ track[0] }}, '{{ track[1] }}')">🗑️</button>
                             <button type="button" class="btn btn-secondary" style="padding:2px 8px;" onclick="moveTrackUp(this)">⬆️</button>
                             <button type="button" class="btn btn-secondary" style="padding:2px 8px;" onclick="moveTrackDown(this)">⬇️</button>
-                        </td>
+                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -305,6 +306,15 @@
             key += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         document.querySelector('input[name="secret_key"]').value = key;
+    }
+
+    function toggleSecretKey() {
+        var input = document.getElementById('secret_key');
+        if (input.type === 'password') {
+            input.type = 'text';
+        } else {
+            input.type = 'password';
+        }
     }
 
     const modal = document.getElementById('trackModal');
@@ -408,19 +418,6 @@
             }
         });
     }
-</script>
-
-<!-- СКРИПТ ПЕРЕКЛЮЧЕНИЯ ПРОГРЕССИВНЫХ ПОЛЕЙ -->
-<script>
-    (function() {
-        var checkbox = document.getElementById('overstayProgressive');
-        var fields = document.getElementById('progressiveFields');
-        if (checkbox && fields) {
-            checkbox.onchange = function() {
-                fields.style.display = this.checked ? 'block' : 'none';
-            };
-        }
-    })();
 </script>
 </body>
 </html>
