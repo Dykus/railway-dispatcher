@@ -1,19 +1,13 @@
 # app/routes/api.py
 # -*- coding: utf-8 -*-
-"""
-API-маршруты для получения данных в формате JSON.
-"""
-
 from flask import Blueprint, request, jsonify, g
 from datetime import datetime
 import sys
 import os
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from app.models import get_dashboard_data, get_conn
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
-
 
 @api_bp.route('/status')
 def api_status():
@@ -45,7 +39,6 @@ def api_status():
         result.append({"id": w_id, "text": timer_text})
     return jsonify({"timers": result})
 
-
 @api_bp.route('/wagon_info')
 def get_wagon_info():
     station_id = g.get('station_id', 1)
@@ -63,7 +56,6 @@ def get_wagon_info():
     if row:
         return jsonify({"owner": row[0] or "", "org": row[1] or ""})
     return jsonify({})
-
 
 @api_bp.route('/dashboard_data')
 def api_dashboard_data():
@@ -98,3 +90,15 @@ def api_dashboard_data():
             'wagons': wagons_data
         })
     return jsonify({'tracks': result, 'total_wagons': len(move_list)})
+
+@api_bp.route('/tracks_by_station')
+def get_tracks_by_station():
+    station_id = request.args.get('station_id', type=int)
+    if not station_id:
+        return jsonify([])
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id, name FROM tracks WHERE station_id = ? ORDER BY sort_order", (station_id,))
+    tracks = [{"id": row[0], "name": row[1]} for row in c.fetchall()]
+    conn.close()
+    return jsonify(tracks)

@@ -154,7 +154,7 @@ def init_db():
 
     migrate_to_visits()
     migrate_to_stations()
-    ensure_fine_settings_for_all_stations()   # новая функция
+    ensure_fine_settings_for_all_stations()
 
 def migrate_to_visits():
     conn = get_conn()
@@ -195,13 +195,10 @@ def ensure_fine_settings_for_all_stations():
     c.execute("SELECT id FROM stations")
     stations = [row[0] for row in c.fetchall()]
     for sid in stations:
-        # Фиксированная ставка
         c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
                   ('overstay_fixed_rate', '2000', sid))
-        # Прогрессивная шкала (по умолчанию выключена)
         c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
                   ('overstay_progressive', '0', sid))
-        # Параметры прогрессивной шкалы
         for key, default in [('overstay_range1_limit', '4'), ('overstay_range1_rate', '2000'),
                              ('overstay_range2_limit', '7'), ('overstay_range2_rate', '2400'),
                              ('overstay_range3_rate', '3000')]:
@@ -237,8 +234,11 @@ def get_setting(key, default=None, station_id=None):
 def set_setting(key, value, station_id=0):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("DELETE FROM app_settings WHERE key = ? AND station_id = ?", (key, station_id))
-    c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, str(value), station_id))
+    if value is None:
+        c.execute("DELETE FROM app_settings WHERE key = ? AND station_id = ?", (key, station_id))
+    else:
+        c.execute("DELETE FROM app_settings WHERE key = ? AND station_id = ?", (key, station_id))
+        c.execute("INSERT INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, str(value), station_id))
     conn.commit()
     conn.close()
 
@@ -838,7 +838,7 @@ def calculate_overstay(visit_id):
     if global_deadline_str:
         try:
             global_dt = datetime.strptime(global_deadline_str[:10], '%Y-%m-%d')
-            allowed_days = (global_dt - arrival_dt).days
+            allowed_days = (global_dt - arrival_dt).days   # без +1
         except:
             pass
     if allowed_days < 0:
@@ -849,7 +849,6 @@ def calculate_overstay(visit_id):
         conn.close()
         return 0, 0.0
 
-    # Режим расчёта определяется настройкой overstay_progressive для данной площадки
     progressive = get_setting('overstay_progressive', '0', station_id) == '1'
     if progressive:
         range1_limit = int(get_setting('overstay_range1_limit', '4', station_id))
@@ -874,3 +873,67 @@ def calculate_overstay(visit_id):
 
     conn.close()
     return overstay, amount
+
+# ==================== ПЕРЕНОС ВАГОНА НА ДРУГУЮ ПЛОЩАДКУ ====================
+def move_wagon_to_station(visit_id, target_station_id, target_track_id):
+    """
+    Переносит активный вагон (визит) на другую площадку с сохранением истории.
+    Возвращает (success, message).
+    """
+    conn = get_conn()
+    c = conn.cursor()
+
+    # Получаем информацию о вагоне
+    c.execute("SELECT wagon_number, station_id, track_id, start_pos FROM wagon_visits WHERE id = ? AND is_archived = 0", (visit_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return False, "Вагон не найден или уже в архиве"
+    wagon_number, old_station_id, old_track_id, old_pos = row
+
+    if old_station_id == target_station_id:
+        conn.close()
+        return False, "Вагон уже находится на этой площадке"
+
+    # Проверяем, нет ли активного вагона с таким же номером на целевой площадке
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND station_id = ? AND is_archived = 0",
+              (wagon_number, target_station_id))
+    if c.fetchone():
+        conn.close()
+        return False, "На целевой площадке уже есть активный вагон с таким номером"
+
+    # Проверяем, что целевой путь существует и принадлежит целевой площадке
+    c.execute("SELECT name FROM tracks WHERE id = ? AND station_id = ?", (target_track_id, target_station_id))
+    track_row = c.fetchone()
+    if not track_row:
+        conn.close()
+        return False, "Целевой путь не найден на указанной площадке"
+    target_track_name = track_row[0]
+
+    # Находим свободное место на новом пути (в конец)
+    wagon_len = float(get_setting('default_wagon_length', '10.0'))
+    spacing = float(get_setting('wagon_spacing', '50.0'))
+    # Получаем максимальную позицию на целевом пути
+    c.execute("SELECT COALESCE(MAX(start_pos + length), 0) FROM wagon_visits WHERE track_id = ? AND status != 'departed' AND is_archived = 0", (target_track_id,))
+    max_pos = c.fetchone()[0]
+    new_pos = max_pos + spacing  # ставим в конец с интервалом
+
+    # Обновляем station_id, track_id, start_pos в wagon_visits
+    c.execute("UPDATE wagon_visits SET station_id = ?, track_id = ?, start_pos = ? WHERE id = ?",
+              (target_station_id, target_track_id, new_pos, visit_id))
+
+    # Обновляем station_id в movement_history для всех записей этого вагона на старой площадке
+    c.execute("UPDATE movement_history SET station_id = ? WHERE wagon_number = ? AND station_id = ?",
+              (target_station_id, wagon_number, old_station_id))
+
+    # Уплотняем старый путь на старой площадке (чтобы не было дыр)
+    compact_track(old_track_id)
+
+    # Логируем действие (на целевой площадке)
+    log_action('move_to_station', wagon_number=wagon_number,
+               details=f"Перенос с площадки {old_station_id} на {target_station_id}, путь {target_track_name}",
+               station_id=target_station_id)
+
+    conn.commit()
+    conn.close()
+    return True, f"Вагон {wagon_number} перенесён на площадку {target_station_id} на путь {target_track_name}"

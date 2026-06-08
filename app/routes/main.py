@@ -1,16 +1,11 @@
 # app/routes/main.py
 # -*- coding: utf-8 -*-
-"""
-Основные маршруты: главная страница, добавление, перемещение, архивация, справка, о программе.
-"""
-
-from flask import Blueprint, render_template, request, redirect, url_for, flash, g
+from flask import Blueprint, render_template, request, redirect, url_for, flash, g, jsonify
 from datetime import datetime, timedelta
 import sys
 import os
 import socket
 import sqlite3
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from config import APP_VERSION
 from app.models import (
@@ -20,10 +15,7 @@ from app.models import (
 
 main_bp = Blueprint('main', __name__)
 
-
-# ==================== ОПРЕДЕЛЕНИЕ ЛОКАЛЬНОГО IP (БЕЗ ВНЕШНЕГО СОЕДИНЕНИЯ) ====================
 def get_local_ip():
-    """Возвращает локальный IP-адрес в сети (без доступа в интернет)."""
     try:
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)
@@ -40,7 +32,6 @@ def get_local_ip():
         return ip
     except Exception:
         return '127.0.0.1'
-
 
 @main_bp.route('/')
 def index():
@@ -59,17 +50,14 @@ def index():
                            version=APP_VERSION,
                            refresh_interval=refresh_interval)
 
-
 @main_bp.route('/help')
 def help_page():
     server_ip = get_local_ip()
     return render_template('help.html', server_ip=server_ip, version=APP_VERSION)
 
-
 @main_bp.route('/about')
 def about_page():
-    return render_template('about.html')
-
+    return render_template('about.html', version=APP_VERSION)
 
 @main_bp.route('/add', methods=['POST'])
 def add_wagon():
@@ -132,7 +120,6 @@ def add_wagon():
                                version=APP_VERSION,
                                refresh_interval=refresh_interval)
 
-    # Проверяем, нет ли уже активного визита с таким номером на ЭТОЙ площадке
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND is_archived = 0 AND station_id = ?", (number, station_id))
@@ -200,7 +187,6 @@ def add_wagon():
         else:
             global_dep = (datetime.now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
 
-    # Всегда создаём новый визит с привязкой к площадке
     compact_track(track_id)
     wagon_len = float(get_setting('default_wagon_length', '10.0'))
     pos = find_slot_on_track(track_id, wagon_len)[1]
@@ -236,7 +222,6 @@ def add_wagon():
                                version=APP_VERSION,
                                refresh_interval=refresh_interval)
     return redirect(url_for('main.index', station_id=station_id))
-
 
 @main_bp.route('/move', methods=['POST'])
 def move_action():
@@ -329,7 +314,6 @@ def move_action():
     if start_date and start_time:
         manual_start = f"{start_date} {start_time}"
 
-    # Передаём station_id в move_wagon, чтобы он проверил принадлежность вагона к площадке
     success, msg = move_wagon(wagon_id, new_track_id, l_days, l_hours, l_mins, manual_start, note, station_id)
     if success:
         if old_track_id is not None:
@@ -352,7 +336,6 @@ def move_action():
                                version=APP_VERSION,
                                refresh_interval=refresh_interval)
 
-
 @main_bp.route('/depart/<int:wagon_id>', methods=['POST'])
 def depart_action(wagon_id):
     station_id = g.get('station_id', 1)
@@ -361,3 +344,22 @@ def depart_action(wagon_id):
     else:
         flash("⚠️ Ошибка при удалении.", 'error')
     return redirect(url_for('main.index', station_id=station_id))
+
+@main_bp.route('/move_to_station', methods=['POST'])
+def move_to_station():
+    if request.user_role not in ('supervisor', 'admin'):
+        return jsonify({"error": "Недостаточно прав"}), 403
+
+    visit_id = request.form.get('visit_id')
+    target_station_id = request.form.get('target_station_id')
+    target_track_id = request.form.get('target_track_id')
+
+    if not visit_id or not target_station_id or not target_track_id:
+        return jsonify({"error": "Не все параметры указаны"}), 400
+
+    from app.models import move_wagon_to_station
+    success, msg = move_wagon_to_station(int(visit_id), int(target_station_id), int(target_track_id))
+    if success:
+        return jsonify({"success": True, "message": msg})
+    else:
+        return jsonify({"success": False, "message": msg}), 400

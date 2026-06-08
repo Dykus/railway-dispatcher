@@ -10,6 +10,7 @@ let activeWagonLocal = null;
 const tooltip = document.getElementById('global-tooltip');
 const removeContainer = document.getElementById('tt-remove-container');
 const editContainer = document.getElementById('tt-edit-container');
+const moveContainer = document.getElementById('tt-move-station-container');
 
 function getStationId() {
     return new URLSearchParams(window.location.search).get('station_id') || '1';
@@ -234,19 +235,20 @@ function openTooltip(el, id, num, owner, org, note, arrival, locIso, globIso, tr
     document.querySelectorAll('.wagon').forEach(w => w.classList.remove('active'));
     el.classList.add('active');
     
-    // Определяем, показывать ли кнопку "Убрать в архив"
-    // 1. По флагу (если передан)
-    const isReturnTrackFlag = el.dataset.isReturnTrack === 'true';
-    // 2. По имени пути (надёжный запасной вариант)
-    const trackNameFromAttr = el.dataset.trackName || '';
-    const isReturnTrackByName = trackNameFromAttr.includes('Черкасов Камень') || trackNameFromAttr.includes('Пост №2');
-    if (isReturnTrackFlag || isReturnTrackByName) {
+    // Показываем кнопку архивации, если путь возвратный
+    const isReturnTrack = el.dataset.isReturnTrack === 'true';
+    if (isReturnTrack) {
         removeContainer.style.display = 'block';
     } else {
         removeContainer.style.display = 'none';
     }
     
+    // Показываем кнопки редактирования и переноса (видны только для supervisor/admin)
     editContainer.style.display = 'block';
+    if (moveContainer) {
+        moveContainer.style.display = 'block';
+    }
+    
     const rect = el.getBoundingClientRect();
     let left = rect.right + 10;
     let top = rect.top;
@@ -613,6 +615,69 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// ==================== ФУНКЦИИ ПЕРЕНОСА МЕЖДУ ПЛОЩАДКАМИ ====================
+function openMoveToStationModal() {
+    if (!activeWagonId) return;
+    const modal = document.getElementById('moveToStationModal');
+    if (!modal) return;
+    const stationSelect = document.getElementById('target_station_select');
+    if (stationSelect) {
+        loadTracksForStation(stationSelect.value);
+        stationSelect.addEventListener('change', function() {
+            loadTracksForStation(this.value);
+        });
+    }
+    modal.style.display = 'flex';
+}
+
+function closeMoveToStationModal() {
+    const modal = document.getElementById('moveToStationModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function loadTracksForStation(stationId) {
+    fetch(`/api/tracks_by_station?station_id=${stationId}`)
+        .then(r => r.json())
+        .then(tracks => {
+            const select = document.getElementById('target_track_select');
+            if (!select) return;
+            select.innerHTML = '<option value="">Выберите путь...</option>';
+            tracks.forEach(t => {
+                select.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+            });
+        })
+        .catch(err => console.log('Ошибка загрузки путей:', err));
+}
+
+function confirmMoveToStation() {
+    const targetStationId = document.getElementById('target_station_select').value;
+    const targetTrackId = document.getElementById('target_track_select').value;
+    if (!targetStationId || !targetTrackId) {
+        alert('Выберите площадку и путь');
+        return;
+    }
+    if (!activeWagonId) {
+        alert('Вагон не выбран');
+        return;
+    }
+    fetch('/move_to_station', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `visit_id=${activeWagonId}&target_station_id=${targetStationId}&target_track_id=${targetTrackId}`
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Ошибка: ' + data.message);
+        }
+    })
+    .catch(err => alert('Ошибка сети: ' + err));
+}
+
+// ===== ПЕРЕКЛЮЧЕНИЕ ТЁМНОЙ ТЕМЫ =====
 function applyTheme(theme) {
     if (theme === 'dark') {
         document.documentElement.classList.add('dark');

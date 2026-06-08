@@ -16,8 +16,8 @@
 </head>
 <body>
 <div class="container">
-    <!-- ПЕРВАЯ СТРОКА: заголовок (слева) + вкладки площадок (справа) -->
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
+    <!-- ПЕРВАЯ СТРОКА: заголовок + версия (слева) и вкладки площадок (справа) -->
+    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 10px;">
         <div style="display: flex; flex-direction: column;">
             <h1 style="margin: 0;">🚂 ЖД Диспетчерская</h1>
             <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">Версия {{ version }}</div>
@@ -33,7 +33,7 @@
         </div>
     </div>
 
-    <!-- ВТОРАЯ СТРОКА: основные кнопки и счётчик -->
+    <!-- ВТОРАЯ СТРОКА: основные кнопки (выровнены по правому краю) -->
     <div class="nav-buttons" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 15px;">
         <span class="total-count">📦 Всего: {{ total_wagons }}</span>
         <a href="/history?station_id={{ current_station_id }}" class="btn btn-history">📜 История</a>
@@ -59,7 +59,7 @@
         <span><span class="legend-color" style="background:linear-gradient(135deg,#e74c3c,#c0392b)"></span> Красный – локальный срок истёк (просрочка)</span>
     </div>
 
-    <!-- Сообщения -->
+    <!-- СООБЩЕНИЯ -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for cat, msg in messages %}
@@ -70,7 +70,7 @@
         {% endif %}
     {% endwith %}
 
-    <!-- Панели управления -->
+    <!-- ПАНЕЛИ УПРАВЛЕНИЯ -->
     <div class="controls">
         <div class="control-box">
             <h3>➕ Новый вагон</h3>
@@ -162,7 +162,7 @@
         </div>
     </div>
 
-    <!-- Тултип -->
+    <!-- ТУЛТИП -->
     <div id="global-tooltip">
         <div class="tooltip-row"><span>🔢 Номер:</span><span id="tt-num"></span></div>
         <div class="tooltip-row"><span>🚚 ТК:</span><span id="tt-owner"></span></div>
@@ -179,10 +179,13 @@
         <div id="tt-edit-container" style="display:none;margin-top:10px;">
             <button onclick="openEditModal()" style="background:#3498db;color:white;border:none;padding:8px;border-radius:4px;cursor:pointer;width:100%;font-weight:bold;">✏️ Редактировать вагон</button>
         </div>
+        <div id="tt-move-station-container" style="display:none; margin-top:10px;">
+            <button onclick="openMoveToStationModal()" class="btn-move-station" style="background:#9b59b6; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer; width:100%; font-weight:bold;">🚂 Перенести на другую площадку</button>
+        </div>
         <div class="close-tooltip" onclick="closeTooltip()">❌ Закрыть</div>
     </div>
 
-    <!-- Модальное окно редактирования -->
+    <!-- МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ -->
     <div id="editModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:2000;justify-content:center;align-items:center;">
         <div style="background:white;padding:30px;border-radius:10px;min-width:400px;max-width:600px;">
             <h3>✏️ Редактирование вагона</h3>
@@ -202,7 +205,32 @@
         </div>
     </div>
 
-    <!-- Пути и вагоны -->
+    <!-- МОДАЛЬНОЕ ОКНО ПЕРЕНОСА НА ДРУГУЮ ПЛОЩАДКУ -->
+    <div id="moveToStationModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; justify-content:center; align-items:center;">
+        <div style="background:var(--bg-container); padding:20px; border-radius:10px; width:400px; max-width:90%; color:var(--text-color);">
+            <h3>🚂 Перенос вагона на другую площадку</h3>
+            <div class="form-row">
+                <label>Целевая площадка:</label>
+                <select id="target_station_select">
+                    {% for station in stations_list %}
+                        <option value="{{ station.id }}">{{ station.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Путь назначения:</label>
+                <select id="target_track_select">
+                    <option value="">Сначала выберите площадку</option>
+                </select>
+            </div>
+            <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn" onclick="closeMoveToStationModal()">Отмена</button>
+                <button class="btn btn-success" onclick="confirmMoveToStation()">Перенести</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ОТОБРАЖЕНИЕ ПУТЕЙ И ВАГОНОВ -->
     {% for track in tracks %}
         <div class="track-wrapper" data-track-id="{{ track.id }}">
             <div class="track-header">
