@@ -7,6 +7,7 @@ let activeWagonNote = null;
 let activeWagonArrival = null;
 let activeWagonGlobal = null;
 let activeWagonLocal = null;
+let pendingWagonId = null;               // для переноса между площадками
 const tooltip = document.getElementById('global-tooltip');
 const removeContainer = document.getElementById('tt-remove-container');
 const editContainer = document.getElementById('tt-edit-container');
@@ -235,7 +236,6 @@ function openTooltip(el, id, num, owner, org, note, arrival, locIso, globIso, tr
     document.querySelectorAll('.wagon').forEach(w => w.classList.remove('active'));
     el.classList.add('active');
     
-    // Показываем кнопку архивации, если путь возвратный
     const isReturnTrack = el.dataset.isReturnTrack === 'true';
     if (isReturnTrack) {
         removeContainer.style.display = 'block';
@@ -243,7 +243,6 @@ function openTooltip(el, id, num, owner, org, note, arrival, locIso, globIso, tr
         removeContainer.style.display = 'none';
     }
     
-    // Показываем кнопки редактирования и переноса (видны только для supervisor/admin)
     editContainer.style.display = 'block';
     if (moveContainer) {
         moveContainer.style.display = 'block';
@@ -527,7 +526,6 @@ function updateDashboard() {
         .catch(err => console.log('Ошибка обновления дашборда:', err));
 }
 
-// Делегирование кликов для тултипа
 document.addEventListener('click', function(e) {
     const wagon = e.target.closest('.wagon');
     if (wagon) {
@@ -615,17 +613,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// ==================== ФУНКЦИИ ПЕРЕНОСА МЕЖДУ ПЛОЩАДКАМИ ====================
+// ==================== ПЕРЕНОС ВАГОНА НА ДРУГУЮ ПЛОЩАДКУ ====================
 function openMoveToStationModal() {
-    if (!activeWagonId) return;
+    if (!activeWagonId) {
+        alert('Вагон не выбран');
+        return;
+    }
+    pendingWagonId = activeWagonId;
     const modal = document.getElementById('moveToStationModal');
     if (!modal) return;
     const stationSelect = document.getElementById('target_station_select');
     if (stationSelect) {
         loadTracksForStation(stationSelect.value);
-        stationSelect.addEventListener('change', function() {
+        stationSelect.onchange = function() {
             loadTracksForStation(this.value);
-        });
+        };
     }
     modal.style.display = 'flex';
 }
@@ -633,6 +635,7 @@ function openMoveToStationModal() {
 function closeMoveToStationModal() {
     const modal = document.getElementById('moveToStationModal');
     if (modal) modal.style.display = 'none';
+    pendingWagonId = null;
 }
 
 function loadTracksForStation(stationId) {
@@ -656,14 +659,14 @@ function confirmMoveToStation() {
         alert('Выберите площадку и путь');
         return;
     }
-    if (!activeWagonId) {
+    if (!pendingWagonId) {
         alert('Вагон не выбран');
         return;
     }
     fetch('/move_to_station', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `visit_id=${activeWagonId}&target_station_id=${targetStationId}&target_track_id=${targetTrackId}`
+        body: `visit_id=${pendingWagonId}&target_station_id=${targetStationId}&target_track_id=${targetTrackId}`
     })
     .then(r => r.json())
     .then(data => {
@@ -675,6 +678,7 @@ function confirmMoveToStation() {
         }
     })
     .catch(err => alert('Ошибка сети: ' + err));
+    closeMoveToStationModal();
 }
 
 // ===== ПЕРЕКЛЮЧЕНИЕ ТЁМНОЙ ТЕМЫ =====

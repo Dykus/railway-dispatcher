@@ -189,7 +189,6 @@ def migrate_to_stations():
     conn.close()
 
 def ensure_fine_settings_for_all_stations():
-    """Создаёт настройки штрафов для всех площадок, если их нет."""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT id FROM stations")
@@ -237,8 +236,8 @@ def set_setting(key, value, station_id=0):
     if value is None:
         c.execute("DELETE FROM app_settings WHERE key = ? AND station_id = ?", (key, station_id))
     else:
-        c.execute("DELETE FROM app_settings WHERE key = ? AND station_id = ?", (key, station_id))
-        c.execute("INSERT INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, str(value), station_id))
+        c.execute("INSERT OR REPLACE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
+                  (key, str(value), station_id))
     conn.commit()
     conn.close()
 
@@ -882,58 +881,72 @@ def move_wagon_to_station(visit_id, target_station_id, target_track_id):
     """
     conn = get_conn()
     c = conn.cursor()
+    try:
+        # Получаем информацию о вагоне
+        c.execute("SELECT wagon_number, station_id, track_id, start_pos FROM wagon_visits WHERE id = ? AND is_archived = 0", (visit_id,))
+        row = c.fetchone()
+        if not row:
+            return False, "Вагон не найден или уже в архиве"
+        wagon_number, old_station_id, old_track_id, old_pos = row
 
-    # Получаем информацию о вагоне
-    c.execute("SELECT wagon_number, station_id, track_id, start_pos FROM wagon_visits WHERE id = ? AND is_archived = 0", (visit_id,))
-    row = c.fetchone()
-    if not row:
+        if old_station_id == target_station_id:
+            return False, "Вагон уже находится на этой площадке"
+
+        # Проверяем, нет ли активного вагона с таким же номером на целевой площадке
+        c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND station_id = ? AND is_archived = 0",
+                  (wagon_number, target_station_id))
+        if c.fetchone():
+            return False, "На целевой площадке уже есть активный вагон с таким номером"
+
+        # Проверяем, что целевой путь существует и принадлежит целевой площадке
+        c.execute("SELECT name FROM tracks WHERE id = ? AND station_id = ?", (target_track_id, target_station_id))
+        track_row = c.fetchone()
+        if not track_row:
+            return False, "Целевой путь не найден на указанной площадке"
+        target_track_name = track_row[0]
+
+        # Обновляем station_id и track_id у вагона (start_pos пока временно)
+        c.execute("UPDATE wagon_visits SET station_id = ?, track_id = ? WHERE id = ?",
+                  (target_station_id, target_track_id, visit_id))
+
+        # --- Уплотнение целевого пути (пересчёт позиций всех вагонов) ---
+        spacing = float(get_setting('wagon_spacing', '50.0', target_station_id))
+        c.execute("SELECT id, length FROM wagon_visits WHERE track_id = ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos ASC",
+                  (target_track_id,))
+        target_wagons = c.fetchall()
+        current_pos = 0.0
+        for wag_id, wag_len in target_wagons:
+            w_len = float(wag_len) if wag_len is not None else 10.0
+            c.execute("UPDATE wagon_visits SET start_pos = ? WHERE id = ?", (current_pos, wag_id))
+            current_pos += w_len + spacing
+        # -------------------------------------------------------------
+
+        # Обновляем station_id в movement_history для всех записей этого вагона на старой площадке
+        c.execute("UPDATE movement_history SET station_id = ? WHERE wagon_number = ? AND station_id = ?",
+                  (target_station_id, wagon_number, old_station_id))
+
+        # Уплотняем старый путь (убираем "дыру")
+        spacing_old = float(get_setting('wagon_spacing', '50.0', old_station_id))
+        c.execute("SELECT id, length FROM wagon_visits WHERE track_id = ? AND id != ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos ASC",
+                  (old_track_id, visit_id))
+        remaining = c.fetchall()
+        current_pos = 0.0
+        for wag_id, wag_len in remaining:
+            w_len = float(wag_len) if wag_len is not None else 10.0
+            c.execute("UPDATE wagon_visits SET start_pos = ? WHERE id = ?", (current_pos, wag_id))
+            current_pos += w_len + spacing_old
+
+        conn.commit()
         conn.close()
-        return False, "Вагон не найден или уже в архиве"
-    wagon_number, old_station_id, old_track_id, old_pos = row
 
-    if old_station_id == target_station_id:
+        # Логируем действие (отдельное соединение)
+        log_action('move_to_station', wagon_number=wagon_number,
+                   details=f"Перенос с площадки {old_station_id} на {target_station_id}, путь {target_track_name}",
+                   station_id=target_station_id)
+
+        return True, f"Вагон {wagon_number} перенесён на площадку {target_station_id} на путь {target_track_name}"
+
+    except Exception as e:
+        conn.rollback()
         conn.close()
-        return False, "Вагон уже находится на этой площадке"
-
-    # Проверяем, нет ли активного вагона с таким же номером на целевой площадке
-    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND station_id = ? AND is_archived = 0",
-              (wagon_number, target_station_id))
-    if c.fetchone():
-        conn.close()
-        return False, "На целевой площадке уже есть активный вагон с таким номером"
-
-    # Проверяем, что целевой путь существует и принадлежит целевой площадке
-    c.execute("SELECT name FROM tracks WHERE id = ? AND station_id = ?", (target_track_id, target_station_id))
-    track_row = c.fetchone()
-    if not track_row:
-        conn.close()
-        return False, "Целевой путь не найден на указанной площадке"
-    target_track_name = track_row[0]
-
-    # Находим свободное место на новом пути (в конец)
-    wagon_len = float(get_setting('default_wagon_length', '10.0'))
-    spacing = float(get_setting('wagon_spacing', '50.0'))
-    # Получаем максимальную позицию на целевом пути
-    c.execute("SELECT COALESCE(MAX(start_pos + length), 0) FROM wagon_visits WHERE track_id = ? AND status != 'departed' AND is_archived = 0", (target_track_id,))
-    max_pos = c.fetchone()[0]
-    new_pos = max_pos + spacing  # ставим в конец с интервалом
-
-    # Обновляем station_id, track_id, start_pos в wagon_visits
-    c.execute("UPDATE wagon_visits SET station_id = ?, track_id = ?, start_pos = ? WHERE id = ?",
-              (target_station_id, target_track_id, new_pos, visit_id))
-
-    # Обновляем station_id в movement_history для всех записей этого вагона на старой площадке
-    c.execute("UPDATE movement_history SET station_id = ? WHERE wagon_number = ? AND station_id = ?",
-              (target_station_id, wagon_number, old_station_id))
-
-    # Уплотняем старый путь на старой площадке (чтобы не было дыр)
-    compact_track(old_track_id)
-
-    # Логируем действие (на целевой площадке)
-    log_action('move_to_station', wagon_number=wagon_number,
-               details=f"Перенос с площадки {old_station_id} на {target_station_id}, путь {target_track_name}",
-               station_id=target_station_id)
-
-    conn.commit()
-    conn.close()
-    return True, f"Вагон {wagon_number} перенесён на площадку {target_station_id} на путь {target_track_name}"
+        return False, f"Ошибка: {str(e)}"
