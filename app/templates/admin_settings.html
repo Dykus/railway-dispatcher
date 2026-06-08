@@ -5,297 +5,464 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Настройки приложения</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    <style>
+        /* Дополнительные стили для страницы настроек (с учётом тёмной темы) */
+        .settings-section { background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+        .settings-section h3 { margin-top: 0; color: var(--text-color); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .form-row { margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap; }
+        .form-row label { width: 220px; font-weight: bold; color: var(--text-color); }
+        .form-row input, .form-row select { width: 300px; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-body); color: var(--text-color); }
+        .form-row input[type="checkbox"] { width: auto; margin-right: 10px; }
+        .hint { font-size: 12px; color: var(--text-muted); margin-left: 220px; margin-top: 5px; }
+        .example { background: var(--bg-hover); border-left: 4px solid var(--btn-primary-bg); padding: 8px 12px; margin: 10px 0 10px 220px; font-size: 13px; border-radius: 4px; color: var(--text-color); }
+        .example i { color: var(--text-muted); }
+        .badge-info { display: inline-block; background: var(--btn-primary-bg); color: white; padding: 2px 6px; border-radius: 12px; font-size: 11px; margin-left: 8px; vertical-align: middle; }
+        .btn-save { background: #27ae60; color: white; border: none; padding: 12px 30px; font-size: 16px; border-radius: 5px; cursor: pointer; }
+        .track-table { width: 100%; margin-top: 15px; border-collapse: collapse; }
+        .track-table th, .track-table td { border: 1px solid var(--border-color); padding: 8px; text-align: left; color: var(--text-color); }
+        .track-table th { background: var(--header-bg); color: white; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; }
+        .modal-content { background: var(--bg-container); padding: 20px; border-radius: 10px; width: 400px; max-width: 90%; color: var(--text-color); }
+        .order-buttons { display: flex; gap: 5px; margin-top: 10px; }
+        .nav-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .btn { display: inline-block; padding: 8px 15px; background: var(--btn-primary-bg); color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; }
+        .btn-primary { background: var(--btn-primary-bg); }
+        .btn-success { background: #27ae60; }
+        .btn-danger { background: #e74c3c; }
+        .btn-secondary { background: #95a5a6; }
+        .global-badge, .station-badge { display: inline-block; background: #f39c12; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 10px; vertical-align: middle; }
+        .station-badge { background: #3498db; }
+        /* Переменные для тёмной темы (дополнительные) */
+        :root {
+            --bg-hover: #f0f7fb;
+            --text-muted: #7f8c8d;
+        }
+        html.dark {
+            --bg-hover: #1f3a5f;
+            --text-muted: #a0b4c8;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>⚙️ Настройки приложения</h1>
-        <div class="nav-bar">
-            {% for station in stations_list %}
-                {% if station.id == current_station_id %}
-                    <strong>[{{ station.name }}]</strong>
-                {% else %}
-                    <a href="?station_id={{ station.id }}">[{{ station.name }}]</a>
-                {% endif %}
-            {% endfor %}
+<div class="container">
+    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <h1 style="margin: 0;">⚙️ Настройки приложения</h1>
+            <div class="station-tabs" style="display: flex; gap: 10px;">
+                {% for station in stations_list %}
+                <a href="?station_id={{ station.id }}" class="btn {% if current_station_id == station.id %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">{{ station.name }}</a>
+                {% endfor %}
+            </div>
         </div>
         <div class="nav-buttons">
             <a href="/?station_id={{ current_station_id }}" class="btn btn-primary">🏠 На главную</a>
-            <a href="/admin/logs?station_id={{ current_station_id }}" class="btn btn-primary"> Журнал действий</a>
+            <a href="/admin/logs?station_id={{ current_station_id }}" class="btn btn-primary">📜 Журнал действий</a>
             <a href="/admin/ip_users?station_id={{ current_station_id }}" class="btn btn-primary">🔗 Привязка IP</a>
             <a href="/admin/backups?station_id={{ current_station_id }}" class="btn btn-primary">💾 Бэкапы</a>
-            <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn btn-primary"> Список изменений</a>
+            <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn btn-primary">📋 Список изменений</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="post" id="mainSettingsForm">
+        <input type="hidden" name="station_id" value="{{ current_station_id }}">
+
+        <!-- Глобальные настройки -->
+        <h2 style="color: #f39c12; border-bottom: 2px solid #f39c12;">🌐 Глобальные настройки <span class="global-badge">общие для всех площадок</span></h2>
+        
+        <!-- Названия площадок -->
+        <div class="settings-section">
+            <h3>🏭 Названия площадок</h3>
+            {% for station in stations_list %}
+            <div class="form-row" style="margin-bottom: 10px;">
+                <label>Площадка {{ station.id }}:</label>
+                <input type="text" value="{{ station.name }}" data-station-id="{{ station.id }}" class="station-rename-input" style="width: 300px;">
+                <button type="button" class="btn btn-success" style="margin-left: 10px; padding: 6px 12px;" onclick="renameStation({{ station.id }}, this.previousElementSibling.value)">Сохранить</button>
+            </div>
+            {% endfor %}
+            <div class="hint">Названия отображаются на вкладках во всём интерфейсе.</div>
         </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+        <!-- Основные настройки -->
+        <div class="settings-section">
+            <h3>📌 Основные</h3>
+            <div class="form-row">
+                <label>Порт сервера:</label>
+                <input type="number" name="port" value="{{ settings.get('port', '5000') }}" min="1024" max="65535">
+            </div>
+            <div class="hint">Номер порта, на котором будет доступен веб-интерфейс. После изменения требуется перезапуск программы. По умолчанию: 5000.</div>
+            
+            <div class="form-row">
+                <label>Секретный ключ:</label>
+                <input type="password" name="secret_key" id="secret_key" value="{{ settings.get('secret_key', '') }}" style="width:400px;">
+                <button type="button" onclick="toggleSecretKey()">👁️</button>
+                <button type="button" onclick="generateKey()">🔄 Сгенерировать</button>
+            </div>
+            <div class="hint">Используется для шифрования сессий. Можно сгенерировать случайный. После смены все пользователи будут разлогинены.</div>
+        </div>
 
-        <form method="POST" action="/admin/settings?station_id={{ current_station_id }}">
-            <div class="settings-section">
-                <h3> Глобальные настройки (общие для всех площадок)</h3>
+        <!-- Резервное копирование -->
+        <div class="settings-section">
+            <h3>💾 Резервное копирование</h3>
+            <div class="form-row">
+                <label>Час авт. бэкапа (0-23):</label>
+                <input type="number" name="backup_hour" value="{{ settings.get('backup_hour', '3') }}" min="0" max="23">
+            </div>
+            <div class="hint">Ежедневное время (в часах) создания автоматической резервной копии базы данных. По умолчанию: 3 (ночь).</div>
+            
+            <div class="form-row">
+                <label>Хранить копий:</label>
+                <input type="number" name="backup_keep_count" value="{{ settings.get('backup_keep_count', '30') }}" min="1">
+            </div>
+            <div class="hint">Сколько последних автоматических копий сохранять. Старые будут удаляться. По умолчанию: 30.</div>
+        </div>
 
-                <h4>🏭 Названия площадок</h4>
-                {% for station in stations_list %}
-                <div class="form-row" style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
-                    <label style="min-width:120px;">Площадка {{ station.id }}:</label>
-                    <input type="text" name="station_name_{{ station.id }}" value="{{ station.name }}" style="flex:1;">
-                </div>
-                {% endfor %}
-                <p style="color: #7f8c8d; font-size: 12px;">Названия отображаются на вкладках во всём интерфейсе.</p>
+        <!-- Удалённое копирование -->
+        <div class="settings-section">
+            <h3>🗄️ Удалённое копирование (сетевая папка)</h3>
+            <div class="form-row">
+                <label>
+                    <input type="checkbox" name="remote_enabled" value="1" {% if settings.get('remote_enabled', '0') == '1' %}checked{% endif %}> Включить копирование
+                </label>
+            </div>
+            <div class="hint">Автоматически копировать создаваемые бэкапы в сетевую папку (SMB).</div>
+            
+            <div class="form-row">
+                <label>Сетевой путь (UNC):</label>
+                <input type="text" name="remote_path" value="{{ settings.get('remote_path', '') }}" placeholder="\\server\share\backups" style="width:400px;">
+            </div>
+            <div class="hint">Путь в формате <code>\\server\папка</code>. Например: <code>\\192.168.1.100\Backups</code></div>
+            
+            <div class="form-row">
+                <label>Имя пользователя:</label>
+                <input type="text" name="remote_user" value="{{ settings.get('remote_user', '') }}" placeholder="домен\пользователь">
+            </div>
+            <div class="hint">Если сетевой ресурс требует аутентификации – укажите логин (можно в формате <code>ДОМЕН\Имя</code>).</div>
+            
+            <div class="form-row">
+                <label>Пароль:</label>
+                <input type="password" name="remote_password" placeholder="Оставьте пустым, чтобы не менять">
+            </div>
+            <div class="hint">Пароль для доступа к сетевой папке. Если оставить пустым – пароль не изменится (останется прежний).</div>
+        </div>
 
-                <h4> Основные</h4>
-                <div class="form-row">
-                    <label>Порт сервера:</label>
-                    <input type="number" name="port" value="{{ settings.get('port', '5000') }}" min="1024" max="65535">
-                    <span style="color: #7f8c8d; font-size: 12px;">Требуется перезапуск приложения</span>
-                </div>
-                <div class="form-row">
-                    <label>Секретный ключ:</label>
-                    <input type="text" name="secret_key" value="{{ settings.get('secret_key', '') }}" style="font-family: monospace;">
-                    <button type="button" onclick="document.querySelector('input[name=secret_key]').value = Array.from({length: 32}, () => 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36))).join('')" style="margin-left:10px;">🔄 Сгенерировать</button>
-                    <span style="color: #7f8c8d; font-size: 12px;">После смены все пользователи будут разлогинены</span>
-                </div>
+        <!-- Логирование -->
+        <div class="settings-section">
+            <h3>📝 Логирование</h3>
+            <div class="form-row">
+                <label>Макс. размер лога (МБ):</label>
+                <input type="number" name="log_max_mb" value="{{ settings.get('log_max_mb', '5') }}" min="1">
+            </div>
+            <div class="hint">Максимальный размер файла журнала <code>railway_dispatcher.log</code>. При превышении создаётся новый файл. По умолчанию: 5 МБ.</div>
+            
+            <div class="form-row">
+                <label>Количество файлов ротации:</label>
+                <input type="number" name="log_backup_count" value="{{ settings.get('log_backup_count', '5') }}" min="1">
+            </div>
+            <div class="hint">Сколько старых файлов журнала сохранять. По умолчанию: 5.</div>
+        </div>
 
-                <h4>💾 Резервное копирование</h4>
-                <div class="form-row">
-                    <label>Час авт. бэкапа (0-23):</label>
-                    <input type="number" name="backup_hour" value="{{ settings.get('backup_hour', '3') }}" min="0" max="23">
-                </div>
-                <div class="form-row">
-                    <label>Хранить копий:</label>
-                    <input type="number" name="backup_keep_count" value="{{ settings.get('backup_keep_count', '30') }}" min="1">
-                </div>
+        <!-- НАСТРОЙКИ ТЕКУЩЕЙ ПЛОЩАДКИ -->
+        <h2 style="color: #3498db; border-bottom: 2px solid #3498db;">🏭 Настройки площадки <span class="station-badge">{{ stations_list | selectattr("id", "eq", current_station_id) | map(attribute="name") | first }}</span></h2>
 
-                <h4>🗄️ Удалённое копирование (сетевая папка)</h4>
-                <div class="form-row">
-                    <label>
-                        <input type="checkbox" name="remote_enabled" {% if settings.get('remote_enabled', '0') == '1' %}checked{% endif %}>
-                        Включить копирование
-                    </label>
-                </div>
-                <div class="form-row">
-                    <label>Сетевой путь (UNC):</label>
-                    <input type="text" name="remote_path" value="{{ settings.get('remote_path', '') }}" placeholder="\\server\share\backups">
-                </div>
-                <div class="form-row">
-                    <label>Имя пользователя:</label>
-                    <input type="text" name="remote_user" value="{{ settings.get('remote_user', '') }}">
-                </div>
-                <div class="form-row">
-                    <label>Пароль:</label>
-                    <input type="password" name="remote_password" value="" placeholder="Оставьте пустым, чтобы не менять">
-                </div>
+        <!-- Штрафы за перепростой (с подробными подсказками) -->
+        <div class="settings-section">
+            <h3>💰 Штрафы за перепростой <span class="badge-info">Что это?</span></h3>
+            <div class="example">
+                <i>ℹ️ Перепростой – это дни, которые вагон находится на станции сверх установленного срока.</i><br>
+                <strong>Пример:</strong> Вагон прибыл 1 июня, глобальный срок 3 дня (должен уехать до 4 июня), а уехал 8 июня. Перепростой = 8 − 3 = 5 суток. За эти 5 суток и начисляется штраф.
+            </div>
 
-                <h4>📝 Логирование</h4>
+            <div class="form-row">
+                <label>
+                    <input type="checkbox" name="overstay_progressive" id="overstayProgressive" value="1" {% if settings.get('overstay_progressive', '0') == '1' %}checked{% endif %}> Прогрессивная шкала
+                </label>
+            </div>
+            <div class="hint">Включите, чтобы штраф увеличивался с каждыми сутками перепростоя. Выключите – будет одинаковая цена за любые сутки.</div>
+
+            <!-- Блок фиксированной ставки -->
+            <div id="fixedRateBlock">
                 <div class="form-row">
-                    <label>Макс. размер лога (МБ):</label>
-                    <input type="number" name="log_max_mb" value="{{ settings.get('log_max_mb', '5') }}" min="1">
+                    <label>Фиксированная ставка (руб/сут):</label>
+                    <input type="number" name="overstay_fixed_rate" value="{{ settings.get('overstay_fixed_rate', '2000') }}" step="0.01" min="0">
                 </div>
-                <div class="form-row">
-                    <label>Количество файлов ротации:</label>
-                    <input type="number" name="log_backup_count" value="{{ settings.get('log_backup_count', '5') }}" min="1">
+                <div class="example">
+                    <i>📌 Используется, когда прогрессивная шкала <strong>выключена</strong>.</i><br>
+                    <strong>Пример:</strong> Ставка = 2000 руб/сут, перепростой = 5 суток → штраф = 5 × 2000 = <strong>10 000 руб</strong>.
                 </div>
             </div>
 
-            <div class="settings-section">
-                <h3>🏭 Настройки площадки {{ stations_list | selectattr("id", "eq", current_station_id) | map(attribute="name") | first }}</h3>
-
-                <h4>💰 Штрафы за перепростой</h4>
+            <!-- Блок прогрессивной шкалы -->
+            <div id="progressiveBlock">
                 <div class="form-row">
-                    <label>
-                        <input type="checkbox" name="overstay_progressive" id="overstay_progressive" {% if settings.get('overstay_progressive', '0') == '1' %}checked{% endif %}>
-                        Прогрессивная шкала (по диапазонам суток)
-                    </label>
+                    <label>Первый порог (сут):</label>
+                    <input type="number" name="overstay_range1_limit" value="{{ settings.get('overstay_range1_limit', '4') }}" min="1">
+                    <label style="margin-left:20px;">Ставка до порога (руб/сут):</label>
+                    <input type="number" name="overstay_range1_rate" value="{{ settings.get('overstay_range1_rate', '2000') }}" step="0.01" min="0">
                 </div>
-
-                <div id="fixed_rate_block" {% if settings.get('overstay_progressive', '0') == '1' %}style="display:none;"{% endif %}>
-                    <div class="form-row">
-                        <label>Фиксированная ставка (руб/сут):</label>
-                        <input type="number" name="overstay_fixed_rate" value="{{ settings.get('overstay_fixed_rate', '2000') }}" min="0" step="100">
-                    </div>
-                    <p style="color: #7f8c8d; font-size: 12px;">Одна ставка за все дни перепростоя</p>
-                </div>
-
-                <div id="progressive_block" {% if settings.get('overstay_progressive', '0') != '1' %}style="display:none;"{% endif %}>
-                    <div class="form-row">
-                        <label>Первый порог (сут):</label>
-                        <input type="number" name="overstay_range1_limit" value="{{ settings.get('overstay_range1_limit', '4') }}" min="1">
-                        <label>Ставка (руб/сут):</label>
-                        <input type="number" name="overstay_range1_rate" value="{{ settings.get('overstay_range1_rate', '2000') }}" min="0" step="100">
-                    </div>
-                    <div class="form-row">
-                        <label>Второй порог (сут):</label>
-                        <input type="number" name="overstay_range2_limit" value="{{ settings.get('overstay_range2_limit', '7') }}" min="1">
-                        <label>Ставка (руб/сут):</label>
-                        <input type="number" name="overstay_range2_rate" value="{{ settings.get('overstay_range2_rate', '2400') }}" min="0" step="100">
-                    </div>
-                    <div class="form-row">
-                        <label>Ставка свыше второго порога (руб/сут):</label>
-                        <input type="number" name="overstay_range3_rate" value="{{ settings.get('overstay_range3_rate', '3000') }}" min="0" step="100">
-                    </div>
-                    <p style="color: #7f8c8d; font-size: 12px;">
-                        Пример: 1-4 сут = 2000₽/сут, 5-7 сут = 2400₽/сут, 8+ сут = 3000₽/сут
-                    </p>
-                </div>
-
-                <h4>🖥️ Интерфейс</h4>
+                <div class="hint">За первые <em>порог1</em> суток перепростоя применяется эта ставка.</div>
                 <div class="form-row">
-                    <label>Интервал обновления (сек):</label>
-                    <input type="number" name="refresh_interval" value="{{ settings.get('refresh_interval', '5') }}" min="1">
+                    <label>Второй порог (сут):</label>
+                    <input type="number" name="overstay_range2_limit" value="{{ settings.get('overstay_range2_limit', '7') }}" min="1">
+                    <label style="margin-left:20px;">Ставка от порога 1 до порога 2 (руб/сут):</label>
+                    <input type="number" name="overstay_range2_rate" value="{{ settings.get('overstay_range2_rate', '2400') }}" step="0.01" min="0">
                 </div>
-
-                <h4>️ Пути и вагоны</h4>
+                <div class="hint">За сутки с <em>(порог1+1)</em> по <em>порог2</em> применяется эта ставка (если перепростой превышает порог1).</div>
                 <div class="form-row">
-                    <label>Длина нового вагона (м):</label>
-                    <input type="number" name="default_wagon_length" value="{{ settings.get('default_wagon_length', '10.0') }}" min="1" step="0.1">
+                    <label>Ставка свыше второго порога (руб/сут):</label>
+                    <input type="number" name="overstay_range3_rate" value="{{ settings.get('overstay_range3_rate', '3000') }}" step="0.01" min="0">
                 </div>
-                <div class="form-row">
-                    <label>Интервал между вагонами (м):</label>
-                    <input type="number" name="wagon_spacing" value="{{ settings.get('wagon_spacing', '50.0') }}" min="0" step="1">
+                <div class="hint">За все сутки сверх <em>порог2</em> применяется эта ставка.</div>
+                <div class="example">
+                    <i>ℹ️ Прогрессивная шкала – разные цены за каждый диапазон перепростоя.</i><br>
+                    <strong>Пример:</strong> Порог1 = 4 сут, ставка1 = 2000 руб/сут; порог2 = 7 сут, ставка2 = 2400 руб/сут; ставка3 = 3000 руб/сут.<br>
+                    Если перепростой = 10 суток, то расчёт:<br>
+                    • первые 4 суток: 4 × 2000 = 8000<br>
+                    • следующие 3 суток (5‑7): 3 × 2400 = 7200<br>
+                    • оставшиеся 3 суток (8‑10): 3 × 3000 = 9000<br>
+                    <strong>Итого: 8000 + 7200 + 9000 = 24 200 руб.</strong>
                 </div>
+                <div class="hint">
+                    <strong>Важно:</strong> Если перепростой меньше порога 1, используется только первая ставка.<br>
+                    Если перепростой не достигает порога 2, вторая ставка не применяется.<br>
+                    Прогрессивная шкала работает только при включённой галочке выше.
+                </div>
+            </div>
+        </div>
 
-                <h4>Список путей</h4>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Название</th>
-                            <th>Длина (м)</th>
-                            <th>Тип</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tracks-tbody">
-                        {% for track in tracks %}
-                        <tr data-track-id="{{ track[0] }}">
-                            <td>{{ track[1] }}</td>
-                            <td>{{ track[2] }}</td>
-                            <td>
-                                {% if track[3] == 'normal' %}Обычный
-                                {% elif track[3] == 'return' %}Возвратный
-                                {% else %}{{ track[3] }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                <button type="button" class="btn btn-warning" onclick="editTrack({{ track[0] }}, '{{ track[1] }}', '{{ track[2] }}', '{{ track[3] }}')">✏️</button>
-                                <button type="button" class="btn btn-danger" onclick="deleteTrack({{ track[0] }})">🗑️</button>
-                                <button type="button" class="btn btn-primary" onclick="moveTrack({{ track[0] }}, 'up')">⬆️</button>
-                                <button type="button" class="btn btn-primary" onclick="moveTrack({{ track[0] }}, 'down')">⬇️</button>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <button type="button" class="btn btn-success" onclick="document.getElementById('addTrackModal').style.display='flex'">➕ Добавить путь</button>
+        <!-- Интерфейс -->
+        <div class="settings-section">
+            <h3>🖥️ Интерфейс</h3>
+            <div class="form-row">
+                <label>Интервал обновления (сек):</label>
+                <input type="number" name="refresh_interval" value="{{ settings.get('refresh_interval', '5') }}" min="1" max="30">
+            </div>
+            <div class="hint">Как часто (в секундах) автоматически обновлять главную страницу (положение вагонов, таймеры). По умолчанию: 5 секунд.</div>
+        </div>
+
+        <!-- Пути и вагоны -->
+        <div class="settings-section">
+            <h3>🛤️ Пути и вагоны</h3>
+            <div class="form-row">
+                <label>Длина нового вагона (м):</label>
+                <input type="number" name="default_wagon_length" value="{{ settings.get('default_wagon_length', '10.0') }}" step="0.1" min="1">
+            </div>
+            <div class="hint">Стандартная длина вагона в метрах, используемая при расстановке на путях. По умолчанию: 10 м.</div>
+            
+            <div class="form-row">
+                <label>Интервал между вагонами (м):</label>
+                <input type="number" name="wagon_spacing" value="{{ settings.get('wagon_spacing', '50.0') }}" step="1" min="0">
+            </div>
+            <div class="hint">Расстояние между соседними вагонами на пути (в метрах). Влияет на визуальное расположение и поиск свободного места. По умолчанию: 50 м.</div>
+
+            <h4>Список путей</h4>
+            <div class="hint">Здесь вы можете добавлять, редактировать, удалять пути и менять их порядок. Для путей, с которых разрешена архивация вагонов, выберите тип <strong>«Возвратный»</strong>.</div>
+            <table class="track-table" id="tracksTable">
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                        <th>Длина (м)</th>
+                        <th>Тип</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="tracksBody">
+                    {% for track in tracks %}
+                    <tr data-track-id="{{ track[0] }}">
+                        <td>{{ track[1] }}</td>
+                        <td>{{ track[2] }}</td>
+                        <td>{% if track[3] == 'normal' %}Обычный{% elif track[3] == 'return' %}Возвратный{% else %}{{ track[3] }}{% endif %}</td>
+                        <td>
+                            <button type="button" class="btn btn-primary" onclick="editTrack({{ track[0] }}, '{{ track[1] }}', {{ track[2] }}, '{{ track[3] }}')" title="Редактировать путь">✏️</button>
+                            <button type="button" class="btn btn-danger" onclick="deleteTrack({{ track[0] }}, '{{ track[1] }}')" title="Удалить путь">🗑️</button>
+                            <button type="button" class="btn btn-secondary" onclick="moveTrack({{ track[0] }}, 'up')" title="Переместить вверх">⬆️</button>
+                            <button type="button" class="btn btn-secondary" onclick="moveTrack({{ track[0] }}, 'down')" title="Переместить вниз">⬇️</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="order-buttons">
+                <button type="button" class="btn btn-success" onclick="addTrack()">➕ Добавить путь</button>
                 <button type="button" class="btn btn-primary" onclick="saveTracksOrder()">💾 Сохранить порядок путей</button>
             </div>
+            <div class="hint">Порядок путей на главной странице соответствует последовательности в таблице. Используйте кнопки ⬆️⬇️ для перемещения, затем нажмите «Сохранить порядок».</div>
+        </div>
 
-            <button type="submit" class="btn btn-success" style="margin-top:20px; padding:15px 30px; font-size:16px;">💾 Сохранить все настройки</button>
+        <div style="text-align: center; margin-top: 30px;">
+            <button type="submit" class="btn-save">💾 Сохранить все настройки</button>
+        </div>
+    </form>
+</div>
+
+<!-- Модальное окно для добавления/редактирования пути -->
+<div id="trackModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Добавить путь</h3>
+        <form method="post" id="trackForm">
+            <input type="hidden" name="action" id="trackAction" value="add_track">
+            <input type="hidden" name="track_id" id="trackId">
+            <div class="form-row">
+                <label>Название:</label>
+                <input type="text" name="track_name" id="trackName" required>
+            </div>
+            <div class="form-row">
+                <label>Длина (м):</label>
+                <input type="number" name="track_length" id="trackLength" step="0.1" min="1" required>
+            </div>
+            <div class="form-row">
+                <label>Тип:</label>
+                <select name="track_type" id="trackType">
+                    <option value="normal">Обычный</option>
+                    <option value="return">Возвратный</option>
+                </select>
+            </div>
+            <div class="hint" style="margin-left:0;">Возвратные пути предназначены для архивации вагонов (кнопка «Убрать в архив»). Обычные пути – для остальных вагонов.</div>
+            <div style="text-align: right; margin-top: 15px;">
+                <button type="button" class="btn" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
         </form>
     </div>
+</div>
 
-    <div id="addTrackModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
-        <div style="background:white; padding:30px; border-radius:10px; min-width:400px;">
-            <h3 id="trackModalTitle">Добавить путь</h3>
-            <form method="POST" action="/admin/settings?station_id={{ current_station_id }}">
-                <input type="hidden" name="action" id="trackAction" value="add_track">
-                <input type="hidden" name="track_id" id="trackId" value="">
-                <div class="form-row">
-                    <label>Название:</label>
-                    <input type="text" name="track_name" id="trackName" required>
-                </div>
-                <div class="form-row">
-                    <label>Длина (м):</label>
-                    <input type="number" name="track_length" id="trackLength" step="0.1" required>
-                </div>
-                <div class="form-row">
-                    <label>Тип:</label>
-                    <select name="track_type" id="trackType">
-                        <option value="normal">Обычный</option>
-                        <option value="return">Возвратный</option>
-                    </select>
-                </div>
-                <div style="display:flex; gap:10px; margin-top:20px;">
-                    <button type="button" class="btn btn-danger" onclick="document.getElementById('addTrackModal').style.display='none'">Отмена</button>
-                    <button type="submit" class="btn btn-success">Сохранить</button>
-                </div>
-            </form>
-        </div>
-    </div>
+<!-- Форма для удаления пути -->
+<form method="post" id="deleteTrackForm" style="display:none;">
+    <input type="hidden" name="action" value="delete_track">
+    <input type="hidden" name="track_id" id="deleteTrackId">
+</form>
 
-    <script>
+<script>
+    // Генерация случайного секретного ключа
+    function generateKey() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=';
+        let key = '';
+        for (let i = 0; i < 32; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
+        document.querySelector('input[name="secret_key"]').value = key;
+    }
+    function toggleSecretKey() {
+        let input = document.getElementById('secret_key');
+        input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    // Модальное окно для путей
+    const modal = document.getElementById('trackModal');
+    function addTrack() {
+        document.getElementById('trackAction').value = 'add_track';
+        document.getElementById('trackId').value = '';
+        document.getElementById('trackName').value = '';
+        document.getElementById('trackLength').value = '1000.0';
+        document.getElementById('trackType').value = 'normal';
+        document.getElementById('modalTitle').textContent = 'Добавить путь';
+        modal.style.display = 'flex';
+    }
     function editTrack(id, name, length, type) {
-        document.getElementById('trackModalTitle').innerText = 'Редактировать путь';
         document.getElementById('trackAction').value = 'edit_track';
         document.getElementById('trackId').value = id;
         document.getElementById('trackName').value = name;
         document.getElementById('trackLength').value = length;
         document.getElementById('trackType').value = type;
-        document.getElementById('addTrackModal').style.display = 'flex';
+        document.getElementById('modalTitle').textContent = 'Редактировать путь';
+        modal.style.display = 'flex';
     }
-
-    function deleteTrack(id) {
-        if (confirm('Удалить этот путь?')) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/admin/settings?station_id={{ current_station_id }}';
-            form.innerHTML = `<input type="hidden" name="action" value="delete_track"><input type="hidden" name="track_id" value="${id}">`;
-            document.body.appendChild(form);
-            form.submit();
+    function deleteTrack(id, name) {
+        if (confirm(`Удалить путь "${name}"? Это возможно только если на нём нет активных вагонов.`)) {
+            document.getElementById('deleteTrackId').value = id;
+            document.getElementById('deleteTrackForm').submit();
         }
     }
+    function closeModal() { modal.style.display = 'none'; }
+    window.onclick = function(e) { if (e.target === modal) modal.style.display = 'none'; };
 
+    // Перемещение пути (вверх/вниз)
     function moveTrack(id, direction) {
         fetch(`/admin/tracks/${direction}?station_id={{ current_station_id }}&track_id=${id}`, {method: 'POST'})
             .then(r => r.json())
             .then(data => { if (data.success) location.reload(); else alert(data.error); });
     }
 
+    // Сохранение порядка путей
     function saveTracksOrder() {
-        const rows = document.querySelectorAll('#tracks-tbody tr');
-        const order = Array.from(rows).map(r => parseInt(r.dataset.trackId));
+        const rows = document.querySelectorAll('#tracksBody tr');
+        const order = Array.from(rows).map(r => r.dataset.trackId);
         fetch('/admin/tracks/save_order?station_id={{ current_station_id }}', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({order: order})
-        }).then(r => r.json()).then(data => { if (data.success) alert(data.message); else alert(data.error); });
+        })
+        .then(r => r.json())
+        .then(data => { if (data.success) alert(data.message); else alert(data.error); });
     }
 
+    // Переименование площадки
+    function renameStation(stationId, newName) {
+        fetch('/admin/rename_station', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'station_id=' + stationId + '&name=' + encodeURIComponent(newName)
+        })
+        .then(r => r.json())
+        .then(data => { if (data.success) location.reload(); else alert(data.error); });
+    }
+
+    // Визуальная подсказка для прогрессивной шкалы (затемнение неактивного блока)
     document.addEventListener('DOMContentLoaded', function() {
-        const progressiveCheckbox = document.getElementById('overstay_progressive');
-        const fixedBlock = document.getElementById('fixed_rate_block');
-        const progressiveBlock = document.getElementById('progressive_block');
-
-        if (progressiveCheckbox) {
-            progressiveCheckbox.addEventListener('change', function() {
+        const progCheckbox = document.getElementById('overstayProgressive');
+        const fixedBlock = document.getElementById('fixedRateBlock');
+        const progBlock = document.getElementById('progressiveBlock');
+        if (progCheckbox) {
+            progCheckbox.addEventListener('change', function() {
                 if (this.checked) {
-                    fixedBlock.style.display = 'none';
-                    progressiveBlock.style.display = 'block';
+                    fixedBlock.style.opacity = '0.6';
+                    progBlock.style.opacity = '1';
                 } else {
-                    fixedBlock.style.display = 'block';
-                    progressiveBlock.style.display = 'none';
+                    fixedBlock.style.opacity = '1';
+                    progBlock.style.opacity = '0.6';
                 }
             });
+            progCheckbox.dispatchEvent(new Event('change'));
         }
-
-        document.querySelectorAll('input[name^="station_name_"]').forEach(input => {
-            input.addEventListener('change', function() {
-                const stationId = this.name.replace('station_name_', '');
-                const newName = this.value.trim();
-                if (newName) {
-                    const formData = new FormData();
-                    formData.append('station_id', stationId);
-                    formData.append('name', newName);
-                    fetch('/admin/rename_station', {method: 'POST', body: formData})
-                        .then(r => r.json())
-                        .then(data => { if (data.success) location.reload(); else alert(data.error); });
-                }
-            });
-        });
     });
-    </script>
+
+    // ========== ПЕРЕКЛЮЧЕНИЕ ТЁМНОЙ ТЕМЫ (как на главной) ==========
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            themeToggleBtn.textContent = '☀️';
+        } else {
+            document.documentElement.classList.remove('dark');
+            themeToggleBtn.textContent = '🌙';
+        }
+        localStorage.setItem('theme', theme);
+    }
+    const themeToggleBtn = document.createElement('button');
+    themeToggleBtn.id = 'themeToggle';
+    themeToggleBtn.style.cssText = 'background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 10px;';
+    themeToggleBtn.title = 'Сменить тему';
+    const targetContainer = document.querySelector('.nav-buttons');
+    if (targetContainer) targetContainer.appendChild(themeToggleBtn);
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') applyTheme('dark');
+    else applyTheme('light');
+    themeToggleBtn.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        applyTheme(isDark ? 'light' : 'dark');
+    });
+</script>
 </body>
 </html>

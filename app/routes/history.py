@@ -10,6 +10,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from app.models import get_grouped_history, get_grouped_archive_history, get_conn
+from config import APP_VERSION
 
 history_bp = Blueprint('history', __name__)
 
@@ -20,7 +21,8 @@ def history_page():
     return render_template('history.html',
                            history_groups=get_grouped_history(station_id),
                            title="История перемещений",
-                           session_role=request.user_role)
+                           session_role=request.user_role,
+                           version=APP_VERSION)
 
 
 @history_bp.route('/archive')
@@ -59,7 +61,7 @@ def archive_page():
             "count": item['count']
         })
     conn.close()
-    return render_template('archive.html', archive_groups=full_archive_data)
+    return render_template('archive.html', archive_groups=full_archive_data, version=APP_VERSION)
 
 
 @history_bp.route('/archive/export', methods=['GET', 'POST'])
@@ -103,4 +105,4 @@ def archive_export_filter():
 
         return redirect(url_for('export.export_archive_excel', **params))
 
-    return render_template('archive_export_filter.html', years=years)
+    return render_template('archive_export_filter.html', years=years, version=APP_VERSION)

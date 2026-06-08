@@ -6,7 +6,6 @@
     <title>ЖД Диспетчерская</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script>
-        // Предотвращение белой вспышки при тёмной теме
         (function() {
             const theme = localStorage.getItem('theme');
             if (theme === 'dark') {
@@ -16,295 +15,255 @@
     </script>
 </head>
 <body>
-    <div class="container">
-        <div class="header-actions">
-            <h1> ЖД Диспетчерская</h1>
-            <div class="nav-buttons">
-                <span class="total-count">📦 Всего: {{ total_wagons }}</span>
-                <a href="/history?station_id={{ current_station_id }}" class="btn btn-history">📜 История</a>
-                <a href="/archive?station_id={{ current_station_id }}" class="btn btn-archive">🗄️ Архив</a>
-                <a href="/export_excel?station_id={{ current_station_id }}" class="btn btn-excel"> Excel</a>
-                {% if is_admin %}
-                    <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn btn-changelog">📋 Список изменений</a>
-                    <a href="/admin/backups?station_id={{ current_station_id }}" class="btn btn-backup">💾 Бэкапы</a>
-                    <a href="/admin/logs?station_id={{ current_station_id }}" class="btn btn-primary">📜 Журнал действий</a>
-                    <a href="/admin/ip_users?station_id={{ current_station_id }}" class="btn btn-primary">🔗 Привязка IP</a>
-                    <a href="/admin/settings?station_id={{ current_station_id }}" class="btn btn-primary">⚙️ Настройки</a>
-                {% endif %}
-                <a href="/help?station_id={{ current_station_id }}" class="btn btn-help"> Помощь</a>
-            </div>
+<div class="container">
+    <!-- ПЕРВАЯ СТРОКА: заголовок (слева) + вкладки площадок (справа) -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
+        <div style="display: flex; flex-direction: column;">
+            <h1 style="margin: 0;">🚂 ЖД Диспетчерская</h1>
+            <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">Версия {{ version }}</div>
         </div>
-
-        <div class="nav-bar">
+        <div class="station-tabs" style="display: flex; gap: 10px;">
             {% for station in stations_list %}
                 {% if station.id == current_station_id %}
-                    <strong>[{{ station.name }}]</strong>
+                    <a href="?station_id={{ station.id }}" class="btn btn-primary" style="padding: 6px 16px;">{{ station.name }}</a>
                 {% else %}
-                    <a href="?station_id={{ station.id }}">[{{ station.name }}]</a>
+                    <a href="?station_id={{ station.id }}" class="btn" style="background: #95a5a6; padding: 6px 16px;">{{ station.name }}</a>
                 {% endif %}
             {% endfor %}
         </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for cat, msg in messages %}
-                    <div class="alert alert-{{ 'success' if cat == 'success' else 'error' }}">
-                        {% if cat == 'success' %}✅{% else %}⚠️{% endif %} {{ msg }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <div class="legend">
-            <span><span class="legend-color" style="background:linear-gradient(135deg,#3498db,#2980b9)"></span> Синий – обычный вагон (срок в норме или не задан)</span>
-            <span><span class="legend-color" style="background:linear-gradient(135deg,#8e44ad,#9b59b6);border:2px solid #f1c40f"></span> Фиолетовый – был на возвратном пути</span>
-            <span><span class="legend-color" style="background:linear-gradient(135deg,#6c3483,#4a235a);border:2px solid #e74c3c"></span> Тёмно-фиолетовый – был на возвратном пути И истёк глобальный срок</span>
-            <span><span class="legend-color" style="background:linear-gradient(135deg,#922b21,#641e16);border:2px solid #e74c3c"></span> Тёмно-красный – обычный вагон с истёкшим глобальным сроком</span>
-            <span><span class="legend-color" style="background:linear-gradient(135deg,#f39c12,#d35400)"></span> Оранжевый – локальный срок &lt; 1 часа</span>
-            <span><span class="legend-color" style="background:linear-gradient(135deg,#e74c3c,#c0392b)"></span> Красный – локальный срок истёк (просрочка)</span>
-        </div>
-
-        <div class="controls">
-            <div class="control-box">
-                <h3>➕ Новый вагон</h3>
-                <form method="POST" action="/add?station_id={{ current_station_id }}" onsubmit="return validateDateTime('add')">
-                    <input type="text" name="number" placeholder="№ вагона" required value="{{ add_form_data.number if add_form_data else '' }}">
-                    <input type="text" name="owner" placeholder="Транспортная компания" required value="{{ add_form_data.owner if add_form_data else '' }}">
-                    <input type="text" name="organization" placeholder="Организация" required value="{{ add_form_data.org if add_form_data else '' }}">
-                    <textarea name="note" placeholder="Примечание" rows="2">{{ add_form_data.note if add_form_data else '' }}</textarea>
-                    
-                    <div style="background:#e8f6f3;padding:10px;border-radius:5px;margin:10px 0;">
-                        <strong>⏰ Глобальный срок:</strong>
-                        <div class="time-group">
-                            <div>
-                                <input type="number" name="cycle_days" min="0" value="{{ add_form_data.cycle_days if add_form_data else '0' }}">
-                                <label>Дни</label>
-                            </div>
-                            <div>
-                                <input type="number" name="cycle_hours" min="0" max="23" value="{{ add_form_data.cycle_hours if add_form_data else '0' }}">
-                                <label>Часы</label>
-                            </div>
-                            <div>
-                                <input type="number" name="cycle_mins" min="0" max="59" value="{{ add_form_data.cycle_mins if add_form_data else '0' }}">
-                                <label>Минуты</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="background:#fef9e7;padding:10px;border-radius:5px;margin:10px 0;">
-                        <strong>📅 Начало отсчёта (оставьте пустым для "сейчас"):</strong>
-                        <div class="time-group" style="margin-top:5px;">
-                            <div>
-                                <input type="text" id="add_start_date" name="start_date" placeholder="ДД.ММ.ГГГГ" value="{{ add_form_data.start_date if add_form_data else '' }}" onblur="formatDateInput(this)">
-                            </div>
-                            <div>
-                                <input type="text" id="add_start_time" name="start_time" placeholder="ЧЧ:ММ" value="{{ add_form_data.start_time if add_form_data else '' }}" onblur="formatTimeInput(this)">
-                            </div>
-                            <div class="date-buttons">
-                                <button type="button" onclick="setToday('add')">Сегодня</button>
-                                <button type="button" onclick="setNow('add')">Сейчас</button>
-                                <button type="button" onclick="clearDateTime('add')">Очистить</button>
-                            </div>
-                        </div>
-                        <div class="date-help">Формат: ДД.ММ.ГГГГ (можно без точек) и ЧЧ:ММ (можно без двоеточия). Оба поля либо заполнены, либо пусты.</div>
-                    </div>
-
-                    <select name="track_id" required>
-                        <option value="">Выберите путь...</option>
-                        {% for t in tracks %}
-                            <option value="{{ t.id }}" {% if add_form_data and add_form_data.track_id == t.id|string %}selected{% endif %}>{{ t.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="btn btn-success" style="width:100%;margin-top:10px;"> Распределить</button>
-                </form>
-            </div>
-
-            <div class="control-box">
-                <h3>🔄 Переместить</h3>
-                <form method="POST" action="/move?station_id={{ current_station_id }}" onsubmit="return validateDateTime('move')">
-                    <div class="search-box" style="margin-bottom:10px;">
-                        <input type="text" id="wagonSearchInput" placeholder=" Поиск вагона..." oninput="filterWagons()">
-                        <button type="button" onclick="document.getElementById('wagonSearchInput').value='';filterWagons()">Очистить</button>
-                    </div>
-                    <select name="wagon_id" id="moveWagonSelect" onchange="updateMoveNote()" required>
-                        <option value="">Выберите вагон...</option>
-                        {% for w in move_list %}
-                            <option value="{{ w.id }}" data-note="{{ w.current_note }}" {% if move_form_data and move_form_data.wagon_id == w.id|string %}selected{% endif %}>{{ w.text }}</option>
-                        {% endfor %}
-                    </select>
-                    <textarea name="note" id="moveNoteArea" placeholder="Примечание" rows="2">{{ move_form_data.note if move_form_data else '' }}</textarea>
-                    
-                    <div style="background:#e8f6f3;padding:10px;border-radius:5px;margin:10px 0;">
-                        <strong>⏳ Локальный срок:</strong>
-                        <div class="time-group">
-                            <div>
-                                <input type="number" name="local_days" min="0" value="{{ move_form_data.local_days if move_form_data else '0' }}">
-                                <label>Дни</label>
-                            </div>
-                            <div>
-                                <input type="number" name="local_hours" min="0" max="23" value="{{ move_form_data.local_hours if move_form_data else '0' }}">
-                                <label>Часы</label>
-                            </div>
-                            <div>
-                                <input type="number" name="local_mins" min="0" max="59" value="{{ move_form_data.local_mins if move_form_data else '0' }}">
-                                <label>Минуты</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="background:#fef9e7;padding:10px;border-radius:5px;margin:10px 0;">
-                        <strong>📅 Начало отсчёта (оставьте пустым для "сейчас"):</strong>
-                        <div class="time-group" style="margin-top:5px;">
-                            <div>
-                                <input type="text" id="move_start_date" name="start_date" placeholder="ДД.ММ.ГГГГ" value="{{ move_form_data.start_date if move_form_data else '' }}" onblur="formatDateInput(this)">
-                            </div>
-                            <div>
-                                <input type="text" id="move_start_time" name="start_time" placeholder="ЧЧ:ММ" value="{{ move_form_data.start_time if move_form_data else '' }}" onblur="formatTimeInput(this)">
-                            </div>
-                            <div class="date-buttons">
-                                <button type="button" onclick="setToday('move')">Сегодня</button>
-                                <button type="button" onclick="setNow('move')">Сейчас</button>
-                                <button type="button" onclick="clearDateTime('move')">Очистить</button>
-                            </div>
-                        </div>
-                        <div class="date-help">Формат: ДД.ММ.ГГГГ (можно без точек) и ЧЧ:ММ (можно без двоеточия). Оба поля либо заполнены, либо пусты.</div>
-                    </div>
-
-                    <select name="new_track_id" required>
-                        <option value="">На путь...</option>
-                        {% for t in tracks %}
-                            <option value="{{ t.id }}" {% if move_form_data and move_form_data.new_track_id == t.id|string %}selected{% endif %}>{{ t.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="btn btn-warning" style="width:100%;margin-top:10px;">🔄 Переместить</button>
-                </form>
-            </div>
-        </div>
-
-        <div id="global-tooltip">
-            <div class="tooltip-row"><span> Номер:</span><span id="tt-num"></span></div>
-            <div class="tooltip-row"><span>🚚 ТК:</span><span id="tt-owner"></span></div>
-            <div class="tooltip-row"><span>🏢 Орг:</span><span id="tt-org"></span></div>
-            <div class="tooltip-row"><span>📝 Примечание:</span><span id="tt-note"></span></div>
-            <div class="tooltip-row"><span> Прибыл:</span><span id="tt-arr"></span></div>
-            <div class="timer-block">
-                <div class="timer-title">⏰ Локальный срок:</div>
-                <div id="tt-loc" style="font-size:16px;font-weight:bold;"></div>
-            </div>
-            <div class="timer-block">
-                <div class="timer-title">🌍 Глобальный срок:</div>
-                <div id="tt-glob" style="font-size:16px;font-weight:bold;"></div>
-            </div>
-            <div id="tt-remove-container" style="display:none;">
-                <form id="tt-depart-form" method="POST" style="margin-top:10px;">
-                    <button type="submit" class="btn-remove-large" onclick="return confirm('Убрать вагон в архив?')">🗄️ УБРАТЬ В АРХИВ</button>
-                </form>
-            </div>
-            <div id="tt-edit-container" style="display:none;margin-top:10px;">
-                <button onclick="openEditModal()" style="background:#3498db;color:white;border:none;padding:8px;border-radius:4px;cursor:pointer;width:100%;font-weight:bold;">✏️ Редактировать вагон</button>
-            </div>
-            <div class="close-tooltip" onclick="closeTooltip()">❌ Закрыть</div>
-        </div>
-
-        <div id="editModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:2000;justify-content:center;align-items:center;">
-            <div style="background:white;padding:30px;border-radius:10px;min-width:400px;max-width:600px;">
-                <h3>✏️ Редактирование вагона</h3>
-                <form id="editForm">
-                    <input type="hidden" name="wagon_id" id="edit_wagon_id">
-                    <div style="margin-bottom:10px;">
-                        <label>Транспортная компания:</label>
-                        <input type="text" name="owner" id="edit_owner">
-                    </div>
-                    <div style="margin-bottom:10px;">
-                        <label>Организация:</label>
-                        <input type="text" name="organization" id="edit_org">
-                    </div>
-                    <div style="margin-bottom:10px;">
-                        <label>Примечание:</label>
-                        <textarea name="note" id="edit_note" rows="3"></textarea>
-                    </div>
-                    <div style="margin-bottom:10px;">
-                        <label>Время прибытия (ГГГГ-ММ-ДД ЧЧ:ММ:СС):</label>
-                        <input type="text" name="arrival_time" id="edit_arrival">
-                    </div>
-                    <div style="margin-bottom:10px;">
-                        <label>Глобальный срок (ГГГГ-ММ-ДД ЧЧ:ММ:СС):</label>
-                        <input type="text" name="departure_time" id="edit_global">
-                    </div>
-                    <div style="margin-bottom:10px;">
-                        <label>Локальный срок (ГГГГ-ММ-ДД ЧЧ:ММ:СС):</label>
-                        <input type="text" name="local_departure_time" id="edit_local">
-                    </div>
-                    <div style="display:flex;gap:10px;margin-top:20px;">
-                        <button type="button" onclick="closeEditModal()" class="btn btn-danger">Отмена</button>
-                        <button type="submit" class="btn btn-success">Сохранить</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        {% for track in tracks %}
-            <div class="track-wrapper" data-track-id="{{ track.id }}">
-                <div class="track-header">
-                    <span>🛤️ {{ track.name }}</span>
-                    <span>📦 Вагонов: {{ track.wagons|length }}</span>
-                </div>
-                <div class="track-body">
-                    {% for w in track.wagons %}
-                        {% set left_pct = (w.pos / track.total) * 100 %}
-                        {% set is_loc_overdue = w.loc.overdue if w.loc.overdue is defined else false %}
-                        {% set raw_loc_time = w.loc.raw if w.loc.raw is defined and w.loc.raw is number else 999999 %}
-                        {% set is_global_overdue = w.is_global_overdue if w.is_global_overdue is defined else false %}
-                        
-                        {% if is_loc_overdue %}
-                            {% set wagon_class = "wagon wagon-overdue" %}
-                        {% elif raw_loc_time < 3600 %}
-                            {% set wagon_class = "wagon wagon-warn" %}
-                        {% elif w.is_highlighted_return and is_global_overdue %}
-                            {% set wagon_class = "wagon wagon-global-overdue" %}
-                        {% elif w.is_highlighted_return %}
-                            {% set wagon_class = "wagon wagon-return-highlight" %}
-                        {% elif is_global_overdue %}
-                            {% set wagon_class = "wagon wagon-global-overdue-normal" %}
-                        {% else %}
-                            {% set wagon_class = "wagon wagon-normal" %}
-                        {% endif %}
-                        
-                        <div class="{{ wagon_class }}" id="wagon-{{ w.id }}"
-                             style="width:130px; left: {{ left_pct }}%;"
-                             data-id="{{ w.id }}"
-                             data-num="{{ w.num|e }}"
-                             data-owner="{{ w.owner|e }}"
-                             data-org="{{ w.org|e }}"
-                             data-note="{{ w.note|e }}"
-                             data-arrival="{{ w.arrival }}"
-                             data-loc-iso="{{ w.loc.iso }}"
-                             data-glob-iso="{{ w.glob.iso }}"
-                             data-track-name="{{ track.name|e }}"
-                             data-loc-raw="{{ w.loc.raw }}"
-                             data-glob-raw="{{ w.glob.raw }}">
-                            <div class="wagon-number">{{ w.num }}</div>
-                            {% if w.loc.iso %}
-                                <div class="wagon-timer" id="timer-loc-{{ w.id }}" 
-                                     data-time="{{ w.loc.iso }}" data-raw="{{ w.loc.raw }}">
-                                    <span class="timer-label">⏳</span>
-                                    <span>{{ w.loc.d }}д {{ "%02d"|format(w.loc.h) }}:{{ "%02d"|format(w.loc.m) }}:{{ "%02d"|format(w.loc.s) }}</span>
-                                </div>
-                            {% endif %}
-                            {% if w.glob.iso %}
-                                <div class="wagon-timer" id="timer-glob-{{ w.id }}" 
-                                     data-time="{{ w.glob.iso }}" data-raw="{{ w.glob.raw }}">
-                                    <span class="timer-label">🌍</span>
-                                    <span>{{ w.glob.d }}д {{ "%02d"|format(w.glob.h) }}:{{ "%02d"|format(w.glob.m) }}</span>
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-        {% endfor %}
     </div>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- ВТОРАЯ СТРОКА: основные кнопки и счётчик -->
+    <div class="nav-buttons" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 15px;">
+        <span class="total-count">📦 Всего: {{ total_wagons }}</span>
+        <a href="/history?station_id={{ current_station_id }}" class="btn btn-history">📜 История</a>
+        <a href="/archive?station_id={{ current_station_id }}" class="btn btn-archive">🗄️ Архив</a>
+        <a href="/export_excel?station_id={{ current_station_id }}" class="btn btn-excel">📊 Excel</a>
+        {% if is_admin %}
+            <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn btn-changelog">📋 Список изменений</a>
+            <a href="/admin/backups?station_id={{ current_station_id }}" class="btn btn-backup">💾 Бэкапы</a>
+            <a href="/admin/logs?station_id={{ current_station_id }}" class="btn btn-primary">📜 Журнал действий</a>
+            <a href="/admin/ip_users?station_id={{ current_station_id }}" class="btn btn-primary">🔗 Привязка IP</a>
+            <a href="/admin/settings?station_id={{ current_station_id }}" class="btn btn-primary">⚙️ Настройки</a>
+        {% endif %}
+        <a href="/help?station_id={{ current_station_id }}" class="btn btn-help">❓ Помощь</a>
+    </div>
+
+    <!-- ЛЕГЕНДА -->
+    <div class="legend">
+        <span><span class="legend-color" style="background:linear-gradient(135deg,#3498db,#2980b9)"></span> Синий – обычный вагон (срок в норме или не задан)</span>
+        <span><span class="legend-color" style="background:linear-gradient(135deg,#8e44ad,#9b59b6);border:2px solid #f1c40f"></span> Фиолетовый – был на возвратном пути</span>
+        <span><span class="legend-color" style="background:linear-gradient(135deg,#6c3483,#4a235a);border:2px solid #e74c3c"></span> Тёмно-фиолетовый – был на возвратном пути И истёк глобальный срок</span>
+        <span><span class="legend-color" style="background:linear-gradient(135deg,#922b21,#641e16);border:2px solid #e74c3c"></span> Тёмно-красный – обычный вагон с истёкшим глобальным сроком</span>
+        <span><span class="legend-color" style="background:linear-gradient(135deg,#f39c12,#d35400)"></span> Оранжевый – локальный срок &lt; 1 часа</span>
+        <span><span class="legend-color" style="background:linear-gradient(135deg,#e74c3c,#c0392b)"></span> Красный – локальный срок истёк (просрочка)</span>
+    </div>
+
+    <!-- Сообщения -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for cat, msg in messages %}
+                <div class="alert alert-{{ 'success' if cat == 'success' else 'error' }}">
+                    {% if cat == 'success' %}✅{% else %}⚠️{% endif %} {{ msg }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Панели управления -->
+    <div class="controls">
+        <div class="control-box">
+            <h3>➕ Новый вагон</h3>
+            <form method="POST" action="/add?station_id={{ current_station_id }}" onsubmit="return validateDateTime('add')">
+                <input type="text" name="number" placeholder="№ вагона" required value="{{ add_form_data.number if add_form_data else '' }}">
+                <input type="text" name="owner" placeholder="Транспортная компания" required value="{{ add_form_data.owner if add_form_data else '' }}">
+                <input type="text" name="organization" placeholder="Организация" required value="{{ add_form_data.org if add_form_data else '' }}">
+                <textarea name="note" placeholder="Примечание" rows="2">{{ add_form_data.note if add_form_data else '' }}</textarea>
+                
+                <div style="background:#e8f6f3;padding:10px;border-radius:5px;margin:10px 0;">
+                    <strong>⏰ Глобальный срок:</strong>
+                    <div class="time-group">
+                        <div><input type="number" name="cycle_days" min="0" value="{{ add_form_data.cycle_days if add_form_data else '0' }}"><label>Дни</label></div>
+                        <div><input type="number" name="cycle_hours" min="0" max="23" value="{{ add_form_data.cycle_hours if add_form_data else '0' }}"><label>Часы</label></div>
+                        <div><input type="number" name="cycle_mins" min="0" max="59" value="{{ add_form_data.cycle_mins if add_form_data else '0' }}"><label>Минуты</label></div>
+                    </div>
+                </div>
+
+                <div style="background:#fef9e7;padding:10px;border-radius:5px;margin:10px 0;">
+                    <strong>📅 Начало отсчёта (оставьте пустым для "сейчас"):</strong>
+                    <div class="time-group" style="margin-top:5px;">
+                        <div><input type="text" id="add_start_date" name="start_date" placeholder="ДД.ММ.ГГГГ" value="{{ add_form_data.start_date if add_form_data else '' }}" onblur="formatDateInput(this)"></div>
+                        <div><input type="text" id="add_start_time" name="start_time" placeholder="ЧЧ:ММ" value="{{ add_form_data.start_time if add_form_data else '' }}" onblur="formatTimeInput(this)"></div>
+                        <div class="date-buttons">
+                            <button type="button" onclick="setToday('add')">Сегодня</button>
+                            <button type="button" onclick="setNow('add')">Сейчас</button>
+                            <button type="button" onclick="clearDateTime('add')">Очистить</button>
+                        </div>
+                    </div>
+                    <div class="date-help">Формат: ДД.ММ.ГГГГ (можно без точек) и ЧЧ:ММ (можно без двоеточия). Оба поля либо заполнены, либо пусты.</div>
+                </div>
+
+                <select name="track_id" required>
+                    <option value="">Выберите путь...</option>
+                    {% for t in tracks %}
+                        <option value="{{ t.id }}" {% if add_form_data and add_form_data.track_id == t.id|string %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-success" style="width:100%;margin-top:10px;">🚂 Распределить</button>
+            </form>
+        </div>
+
+        <div class="control-box">
+            <h3>🔄 Переместить</h3>
+            <form method="POST" action="/move?station_id={{ current_station_id }}" onsubmit="return validateDateTime('move')">
+                <div class="search-box" style="margin-bottom:10px;">
+                    <input type="text" id="wagonSearchInput" placeholder="🔍 Поиск вагона..." oninput="filterWagons()">
+                    <button type="button" onclick="document.getElementById('wagonSearchInput').value='';filterWagons()">Очистить</button>
+                </div>
+                <select name="wagon_id" id="moveWagonSelect" onchange="updateMoveNote()" required size="5">
+                    <option value="">Выберите вагон...</option>
+                    {% for w in move_list %}
+                        <option value="{{ w.id }}" data-note="{{ w.current_note }}" {% if move_form_data and move_form_data.wagon_id == w.id|string %}selected{% endif %}>{{ w.text }}</option>
+                    {% endfor %}
+                </select>
+                <textarea name="note" id="moveNoteArea" placeholder="Примечание" rows="2">{{ move_form_data.note if move_form_data else '' }}</textarea>
+                
+                <div style="background:#e8f6f3;padding:10px;border-radius:5px;margin:10px 0;">
+                    <strong>⏳ Локальный срок:</strong>
+                    <div class="time-group">
+                        <div><input type="number" name="local_days" min="0" value="{{ move_form_data.local_days if move_form_data else '0' }}"><label>Дни</label></div>
+                        <div><input type="number" name="local_hours" min="0" max="23" value="{{ move_form_data.local_hours if move_form_data else '0' }}"><label>Часы</label></div>
+                        <div><input type="number" name="local_mins" min="0" max="59" value="{{ move_form_data.local_mins if move_form_data else '0' }}"><label>Минуты</label></div>
+                    </div>
+                </div>
+
+                <div style="background:#fef9e7;padding:10px;border-radius:5px;margin:10px 0;">
+                    <strong>📅 Начало отсчёта (оставьте пустым для "сейчас"):</strong>
+                    <div class="time-group" style="margin-top:5px;">
+                        <div><input type="text" id="move_start_date" name="start_date" placeholder="ДД.ММ.ГГГГ" value="{{ move_form_data.start_date if move_form_data else '' }}" onblur="formatDateInput(this)"></div>
+                        <div><input type="text" id="move_start_time" name="start_time" placeholder="ЧЧ:ММ" value="{{ move_form_data.start_time if move_form_data else '' }}" onblur="formatTimeInput(this)"></div>
+                        <div class="date-buttons">
+                            <button type="button" onclick="setToday('move')">Сегодня</button>
+                            <button type="button" onclick="setNow('move')">Сейчас</button>
+                            <button type="button" onclick="clearDateTime('move')">Очистить</button>
+                        </div>
+                    </div>
+                    <div class="date-help">Формат: ДД.ММ.ГГГГ (можно без точек) и ЧЧ:ММ (можно без двоеточия). Оба поля либо заполнены, либо пусты.</div>
+                </div>
+
+                <select name="new_track_id" required>
+                    <option value="">На путь...</option>
+                    {% for t in tracks %}
+                        <option value="{{ t.id }}" {% if move_form_data and move_form_data.new_track_id == t.id|string %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-warning" style="width:100%;margin-top:10px;">🔄 Переместить</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Тултип -->
+    <div id="global-tooltip">
+        <div class="tooltip-row"><span>🔢 Номер:</span><span id="tt-num"></span></div>
+        <div class="tooltip-row"><span>🚚 ТК:</span><span id="tt-owner"></span></div>
+        <div class="tooltip-row"><span>🏢 Орг:</span><span id="tt-org"></span></div>
+        <div class="tooltip-row"><span>📝 Примечание:</span><span id="tt-note"></span></div>
+        <div class="tooltip-row"><span>📅 Прибыл:</span><span id="tt-arr"></span></div>
+        <div class="timer-block"><div class="timer-title">⏰ Локальный срок:</div><div id="tt-loc" style="font-size:16px;font-weight:bold;"></div></div>
+        <div class="timer-block"><div class="timer-title">🌍 Глобальный срок:</div><div id="tt-glob" style="font-size:16px;font-weight:bold;"></div></div>
+        <div id="tt-remove-container" style="display:none;">
+            <form id="tt-depart-form" method="POST">
+                <button type="submit" class="btn-remove-large" onclick="return confirm('Убрать вагон в архив?')">🗄️ УБРАТЬ В АРХИВ</button>
+            </form>
+        </div>
+        <div id="tt-edit-container" style="display:none;margin-top:10px;">
+            <button onclick="openEditModal()" style="background:#3498db;color:white;border:none;padding:8px;border-radius:4px;cursor:pointer;width:100%;font-weight:bold;">✏️ Редактировать вагон</button>
+        </div>
+        <div class="close-tooltip" onclick="closeTooltip()">❌ Закрыть</div>
+    </div>
+
+    <!-- Модальное окно редактирования -->
+    <div id="editModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:2000;justify-content:center;align-items:center;">
+        <div style="background:white;padding:30px;border-radius:10px;min-width:400px;max-width:600px;">
+            <h3>✏️ Редактирование вагона</h3>
+            <form id="editForm">
+                <input type="hidden" name="wagon_id" id="edit_wagon_id">
+                <div><label>Транспортная компания:</label><input type="text" name="owner" id="edit_owner"></div>
+                <div><label>Организация:</label><input type="text" name="organization" id="edit_org"></div>
+                <div><label>Примечание:</label><textarea name="note" id="edit_note" rows="3"></textarea></div>
+                <div><label>Время прибытия (ГГГГ-ММ-ДД ЧЧ:ММ:СС):</label><input type="text" name="arrival_time" id="edit_arrival"></div>
+                <div><label>Глобальный срок (ГГГГ-ММ-ДД ЧЧ:ММ:СС):</label><input type="text" name="departure_time" id="edit_global"></div>
+                <div><label>Локальный срок (ГГГГ-ММ-ДД ЧЧ:ММ:СС):</label><input type="text" name="local_departure_time" id="edit_local"></div>
+                <div style="display:flex;gap:10px;margin-top:20px;">
+                    <button type="button" onclick="closeEditModal()" class="btn btn-danger">Отмена</button>
+                    <button type="submit" class="btn btn-success">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Пути и вагоны -->
+    {% for track in tracks %}
+        <div class="track-wrapper" data-track-id="{{ track.id }}">
+            <div class="track-header">
+                <span>🛤️ {{ track.name }}</span>
+                <span>📦 Вагонов: {{ track.wagons|length }}</span>
+            </div>
+            <div class="track-body">
+                {% for w in track.wagons %}
+                    {% set left_pct = (w.pos / track.total) * 100 %}
+                    {% set is_loc_overdue = w.loc.overdue if w.loc.overdue is defined else false %}
+                    {% set raw_loc_time = w.loc.raw if w.loc.raw is defined and w.loc.raw is number else 999999 %}
+                    {% set is_global_overdue = w.is_global_overdue if w.is_global_overdue is defined else false %}
+                    
+                    {% if is_loc_overdue %}
+                        {% set wagon_class = "wagon wagon-overdue" %}
+                    {% elif raw_loc_time < 3600 %}
+                        {% set wagon_class = "wagon wagon-warn" %}
+                    {% elif w.is_highlighted_return and is_global_overdue %}
+                        {% set wagon_class = "wagon wagon-global-overdue" %}
+                    {% elif w.is_highlighted_return %}
+                        {% set wagon_class = "wagon wagon-return-highlight" %}
+                    {% elif is_global_overdue %}
+                        {% set wagon_class = "wagon wagon-global-overdue-normal" %}
+                    {% else %}
+                        {% set wagon_class = "wagon wagon-normal" %}
+                    {% endif %}
+                    
+                    <div class="{{ wagon_class }}" id="wagon-{{ w.id }}"
+                         style="width:130px; left: {{ left_pct }}%;"
+                         data-id="{{ w.id }}"
+                         data-num="{{ w.num|e }}"
+                         data-owner="{{ w.owner|e }}"
+                         data-org="{{ w.org|e }}"
+                         data-note="{{ w.note|e }}"
+                         data-arrival="{{ w.arrival }}"
+                         data-loc-iso="{{ w.loc.iso }}"
+                         data-glob-iso="{{ w.glob.iso }}"
+                         data-track-name="{{ track.name|e }}"
+                         data-is-return-track="{{ w.is_return_track|lower }}"
+                         data-loc-raw="{{ w.loc.raw }}"
+                         data-glob-raw="{{ w.glob.raw }}">
+                        <div class="wagon-number">{{ w.num }}</div>
+                        {% if w.loc.iso %}
+                            <div class="wagon-timer" id="timer-loc-{{ w.id }}" data-time="{{ w.loc.iso }}" data-raw="{{ w.loc.raw }}">
+                                <span class="timer-label">⏳</span>
+                                <span>{{ w.loc.d }}д {{ "%02d"|format(w.loc.h) }}:{{ "%02d"|format(w.loc.m) }}:{{ "%02d"|format(w.loc.s) }}</span>
+                            </div>
+                        {% endif %}
+                        {% if w.glob.iso %}
+                            <div class="wagon-timer" id="timer-glob-{{ w.id }}" data-time="{{ w.glob.iso }}" data-raw="{{ w.glob.raw }}">
+                                <span class="timer-label">🌍</span>
+                                <span>{{ w.glob.d }}д {{ "%02d"|format(w.glob.h) }}:{{ "%02d"|format(w.glob.m) }}</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

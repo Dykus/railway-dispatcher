@@ -3,6 +3,7 @@
 """
 Модели данных и функции работы с базой данных.
 """
+
 import os
 import glob
 import shutil
@@ -11,11 +12,12 @@ import threading
 import time
 from datetime import datetime, timedelta
 from collections import defaultdict
+
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DB_NAME, BACKUP_DIR, CHANGELOG_PATH
 from app.utils import (
-    get_conn, is_return_track, clean_note_for_db, log_action, format_date
+    get_conn, clean_note_for_db, log_action, format_date
 )
 
 # ==================== ИНИЦИАЛИЗАЦИЯ БД ====================
@@ -137,7 +139,7 @@ def init_db():
         c.execute("INSERT INTO stations (id, name, code) VALUES (1, 'Основная', 'main')")
         c.execute("INSERT INTO stations (id, name, code) VALUES (2, 'Вторая', 'second')")
         data = [
-            (1, 'Ст. Черкасов Камень', 1000.0, 'normal', 1, 1), (2, 'Пост №2', 1000.0, 'normal', 2, 1),
+            (1, 'Ст. Черкасов Камень', 1000.0, 'return', 1, 1), (2, 'Пост №2', 1000.0, 'return', 2, 1),
             (3, 'АО "Знамя" (Осмотр)', 1000.0, 'normal', 3, 1), (4, 'АО "Знамя" (Ремонт)', 1000.0, 'normal', 4, 1),
             (5, 'АО "Знамя" (База - Погрузка)', 1000.0, 'normal', 5, 1), (6, 'АО "Знамя" (Цех ППВВ - Погрузка)', 1000.0, 'normal', 6, 1),
             (7, 'АО "Знамя" (Отстой)', 1000.0, 'normal', 7, 1), (8, 'Резерв', 2000.0, 'normal', 8, 1)
@@ -152,7 +154,7 @@ def init_db():
 
     migrate_to_visits()
     migrate_to_stations()
-    migrate_fine_settings()
+    ensure_fine_settings_for_all_stations()   # новая функция
 
 def migrate_to_visits():
     conn = get_conn()
@@ -186,36 +188,27 @@ def migrate_to_stations():
         conn.commit()
     conn.close()
 
-def migrate_fine_settings():
-    """
-    Добавляет настройки штрафов для каждой площадки.
-    НЕ сбрасывает пользовательские значения.
-    """
+def ensure_fine_settings_for_all_stations():
+    """Создаёт настройки штрафов для всех площадок, если их нет."""
     conn = get_conn()
     c = conn.cursor()
-    c.execute("DELETE FROM app_settings WHERE key LIKE 'overstay_%' AND station_id = 0")
     c.execute("SELECT id FROM stations")
     stations = [row[0] for row in c.fetchall()]
-    if not stations: stations = [1, 2]
-
-    default_settings = {
-        'overstay_progressive': '0',
-        'overstay_fixed_rate': '2000',
-        'overstay_range1_limit': '4',
-        'overstay_range1_rate': '2000',
-        'overstay_range2_limit': '7',
-        'overstay_range2_rate': '2400',
-        'overstay_range3_rate': '3000'
-    }
-
     for sid in stations:
-        for key, default_val in default_settings.items():
+        # Фиксированная ставка
+        c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
+                  ('overstay_fixed_rate', '2000', sid))
+        # Прогрессивная шкала (по умолчанию выключена)
+        c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
+                  ('overstay_progressive', '0', sid))
+        # Параметры прогрессивной шкалы
+        for key, default in [('overstay_range1_limit', '4'), ('overstay_range1_rate', '2000'),
+                             ('overstay_range2_limit', '7'), ('overstay_range2_rate', '2400'),
+                             ('overstay_range3_rate', '3000')]:
             c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
-                      (key, default_val, sid))
-
+                      (key, default, sid))
     conn.commit()
     conn.close()
-    print("[МИГРАЦИЯ] Настройки штрафов приведены в порядок (без изменения существующих).")
 
 def get_setting(key, default=None, station_id=None):
     conn = get_conn()
@@ -511,13 +504,16 @@ def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0
     w_num, w_owner, org, global_dep, old_track_id, current_note, current_visits, arrival_time_str = res
     last_event_dt = get_last_event_datetime(w_num, station_id)
 
-    c.execute("SELECT name FROM tracks WHERE id = ?", (old_track_id,))
-    from_track_name = c.fetchone()[0]
-    c.execute("SELECT name FROM tracks WHERE id = ?", (new_track_id,))
-    to_track_name = c.fetchone()[0]
+    c.execute("SELECT name, track_type FROM tracks WHERE id = ?", (old_track_id,))
+    from_row = c.fetchone()
+    from_track_name = from_row[0] if from_row else "Неизвестный путь"
+    c.execute("SELECT name, track_type FROM tracks WHERE id = ?", (new_track_id,))
+    to_row = c.fetchone()
+    to_track_name = to_row[0] if to_row else "Неизвестный путь"
+    to_track_type = to_row[1] if to_row else 'normal'
 
     new_visit_count = int(current_visits) if current_visits is not None else 0
-    if not is_return_track(to_track_name): 
+    if to_track_type != 'return':
         new_visit_count += 1
 
     new_local_dep_time = None
@@ -682,7 +678,7 @@ def get_dashboard_data(station_id=1):
     c = conn.cursor()
     c.execute("SELECT id, name, total_length, track_type FROM tracks WHERE station_id = ? ORDER BY sort_order ASC", (station_id,))
     tracks_raw = c.fetchall()
-    c.execute("""SELECT wv.id, wv.wagon_number, wv.length, wv.cargo_type, wv.owner, wv.organization, wv.track_id, wv.start_pos, wv.arrival_time, wv.departure_time, wv.local_departure_time, t.name, wv.visit_count
+    c.execute("""SELECT wv.id, wv.wagon_number, wv.length, wv.cargo_type, wv.owner, wv.organization, wv.track_id, wv.start_pos, wv.arrival_time, wv.departure_time, wv.local_departure_time, t.name, t.track_type, wv.visit_count
                  FROM wagon_visits wv JOIN tracks t ON wv.track_id = t.id
                  WHERE wv.status != 'departed' AND wv.is_archived = 0 AND wv.station_id = ?
                  ORDER BY t.sort_order ASC, wv.start_pos ASC""", (station_id,))
@@ -702,9 +698,9 @@ def get_dashboard_data(station_id=1):
         except: t_len = 1000.0
         track_wagons = wagons_by_track.get(t_id, [])
         processed = []
-        is_return_track_flag = is_return_track(t_name)
+        is_return_track_flag = (t_type == 'return')
         for w in track_wagons:
-            w_id, w_num, w_len, w_note, w_owner, w_org, w_tid, w_pos, w_arr, w_glob, w_loc, tr_name, w_visits = w
+            w_id, w_num, w_len, w_note, w_owner, w_org, w_tid, w_pos, w_arr, w_glob, w_loc, tr_name, tr_type, w_visits = w
             try: w_visits = int(w_visits) if w_visits is not None else 0
             except: w_visits = 0
             try: w_pos = float(w_pos) if w_pos is not None else 0.0
@@ -814,11 +810,13 @@ def calculate_overstay(visit_id):
     c = conn.cursor()
     c.execute("""SELECT arrival_time, departure_time, station_id,
                  (SELECT MAX(timestamp) FROM archived_history WHERE visit_id = ?) as last_ts
-                 FROM wagon_visits WHERE id = ? AND is_archived = 1""", (visit_id, visit_id))
+                 FROM wagon_visits WHERE id = ? AND is_archived = 1""",
+              (visit_id, visit_id))
     row = c.fetchone()
     if not row:
         conn.close()
         return 0, 0.0
+
     arrival_str, global_deadline_str, station_id, last_ts_str = row
     if not arrival_str or not last_ts_str:
         conn.close()
@@ -840,25 +838,26 @@ def calculate_overstay(visit_id):
     if global_deadline_str:
         try:
             global_dt = datetime.strptime(global_deadline_str[:10], '%Y-%m-%d')
-            allowed_days = (global_dt - arrival_dt).days + 1
-        except: pass
-    if allowed_days < 0: allowed_days = 0
+            allowed_days = (global_dt - arrival_dt).days
+        except:
+            pass
+    if allowed_days < 0:
+        allowed_days = 0
 
     overstay = calendar_days - allowed_days
     if overstay <= 0:
         conn.close()
         return 0, 0.0
 
+    # Режим расчёта определяется настройкой overstay_progressive для данной площадки
     progressive = get_setting('overstay_progressive', '0', station_id) == '1'
-    
     if progressive:
-        # Прогрессивная шкала по диапазонам суток
         range1_limit = int(get_setting('overstay_range1_limit', '4', station_id))
         range1_rate = float(get_setting('overstay_range1_rate', '2000', station_id))
         range2_limit = int(get_setting('overstay_range2_limit', '7', station_id))
         range2_rate = float(get_setting('overstay_range2_rate', '2400', station_id))
         range3_rate = float(get_setting('overstay_range3_rate', '3000', station_id))
-        
+
         amount = 0.0
         days1 = min(overstay, range1_limit)
         amount += days1 * range1_rate
@@ -870,7 +869,6 @@ def calculate_overstay(visit_id):
             if remaining > 0:
                 amount += remaining * range3_rate
     else:
-        # Фиксированная ставка
         fixed_rate = float(get_setting('overstay_fixed_rate', '2000', station_id))
         amount = overstay * fixed_rate
 

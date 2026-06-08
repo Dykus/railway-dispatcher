@@ -15,7 +15,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from config import BACKUP_DIR, DB_NAME, CHANGELOG_PATH
 from app.models import (
     get_conn, get_all_settings, set_setting,
-    get_all_tracks, add_track, update_track, delete_track
+    get_all_tracks, add_track, update_track, delete_track,
+    move_track_up, move_track_down
 )
 from app.utils import log_action, parse_flexible_date
 
@@ -306,7 +307,7 @@ def changelog():
         content = f.read()
     return render_template('changelog.html', content=content)
 
-# ==================== НАСТРОЙКИ ====================
+# ==================== НАСТРОЙКИ (ИСПРАВЛЕНА ОШИБКА UNIQUE) ====================
 @admin_bp.route('/settings', methods=['GET', 'POST'])
 def settings():
     if request.user_role != 'admin':
@@ -314,6 +315,13 @@ def settings():
     station_id = g.get('station_id', 1)
 
     if request.method == 'POST':
+        # --- ОТЛАДКА: печатаем полученные данные ---
+        import logging
+        logging.warning("=== POST данные для station_id=%s ===", station_id)
+        for key, value in request.form.items():
+            logging.warning("  %s = %s", key, value)
+        logging.warning("=================================")
+
         action = request.form.get('action')
         
         # Управление путями
@@ -349,7 +357,7 @@ def settings():
 
         # ---------- СОХРАНЕНИЕ ОСНОВНЫХ НАСТРОЕК ----------
         else:
-            # === ГЛОБАЛЬНЫЕ настройки (station_id=0) ===
+            # Глобальные настройки (station_id=0)
             global_keys = [
                 'port', 'secret_key', 'backup_hour', 'backup_keep_count',
                 'remote_enabled', 'remote_path', 'remote_user', 'remote_password',
@@ -359,39 +367,47 @@ def settings():
                 if key == 'remote_enabled':
                     value = '1' if request.form.get(key) else '0'
                 elif key == 'remote_password':
-                    raw_val = request.form.get(key, '')
-                    if raw_val:
-                        value = raw_val
-                    else:
-                        continue  # Не перезаписываем пароль пустым значением
+                    value = request.form.get(key, '')
                 else:
                     value = request.form.get(key, '')
                 set_setting(key, value, station_id=0)
 
-            # === ЛОКАЛЬНЫЕ настройки ===
-            # Убран 'theme', так как его нет в форме
+            # Локальные настройки (интерфейс и вагоны)
             local_keys = ['refresh_interval', 'default_wagon_length', 'wagon_spacing']
             for key in local_keys:
                 value = request.form.get(key, '')
                 set_setting(key, value, station_id=station_id)
 
-            # === НАСТРОЙКИ ШТРАФОВ ===
-            prog = '1' if request.form.get('overstay_progressive') else '0'
-            set_setting('overstay_progressive', prog, station_id=station_id)
-
-            # Сохраняем все поля штрафов (и фиксированную, и диапазонную)
-            fine_keys = {
-                'overstay_fixed_rate': 2000,
-                'overstay_range1_limit': 4,
-                'overstay_range1_rate': 2000,
-                'overstay_range2_limit': 7,
-                'overstay_range2_rate': 2400,
-                'overstay_range3_rate': 3000
+            # ========== НАСТРОЙКИ ШТРАФОВ – БЕЗ ОШИБКИ UNIQUE ==========
+            conn = get_conn()
+            c = conn.cursor()
+            # Список ключей и значений
+            fine_data = {
+                'overstay_progressive': request.form.get('overstay_progressive', '0'),
+                'overstay_fixed_rate': request.form.get('overstay_fixed_rate', '2000'),
+                'overstay_range1_limit': request.form.get('overstay_range1_limit', '4'),
+                'overstay_range1_rate': request.form.get('overstay_range1_rate', '2000'),
+                'overstay_range2_limit': request.form.get('overstay_range2_limit', '7'),
+                'overstay_range2_rate': request.form.get('overstay_range2_rate', '2400'),
+                'overstay_range3_rate': request.form.get('overstay_range3_rate', '3000')
             }
-            for key, default in fine_keys.items():
-                raw = request.form.get(key, '')
-                value = raw if raw != '' else str(default)
-                set_setting(key, value, station_id=station_id)
+            for key, value in fine_data.items():
+                # INSERT OR REPLACE автоматически заменяет существующую запись
+                c.execute("INSERT OR REPLACE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
+                          (key, str(value), station_id))
+            conn.commit()
+            conn.close()
+
+            # --- ОТЛАДКА: проверяем, что записалось ---
+            conn2 = get_conn()
+            c2 = conn2.cursor()
+            c2.execute("SELECT key, value FROM app_settings WHERE station_id = ? AND key LIKE 'overstay_%'", (station_id,))
+            rows = c2.fetchall()
+            conn2.close()
+            logging.warning("=== СОХРАНЁННЫЕ НАСТРОЙКИ ДЛЯ station_id=%s ===", station_id)
+            for key, value in rows:
+                logging.warning("  %s = %s", key, value)
+            logging.warning("============================================")
 
             flash('Настройки сохранены', 'success')
             return redirect(url_for('admin.settings', station_id=station_id))
@@ -400,6 +416,27 @@ def settings():
     settings_dict = get_all_settings(station_id)
     tracks = get_all_tracks(station_id)
     return render_template('admin_settings.html', settings=settings_dict, tracks=tracks)
+
+# ==================== ПЕРЕМЕЩЕНИЕ ПУТЕЙ ====================
+@admin_bp.route('/tracks/up', methods=['POST'])
+def move_track_up_route():
+    if request.user_role != 'admin':
+        return jsonify({"error": "Доступ запрещён"}), 403
+    track_id = request.args.get('track_id')
+    if not track_id:
+        return jsonify({"error": "Не указан путь"}), 400
+    success = move_track_up(int(track_id))
+    return jsonify({"success": success})
+
+@admin_bp.route('/tracks/down', methods=['POST'])
+def move_track_down_route():
+    if request.user_role != 'admin':
+        return jsonify({"error": "Доступ запрещён"}), 403
+    track_id = request.args.get('track_id')
+    if not track_id:
+        return jsonify({"error": "Не указан путь"}), 400
+    success = move_track_down(int(track_id))
+    return jsonify({"success": success})
 
 # ==================== СОХРАНЕНИЕ ПОРЯДКА ПУТЕЙ ====================
 @admin_bp.route('/tracks/save_order', methods=['POST'])

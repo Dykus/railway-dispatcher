@@ -11,7 +11,6 @@ const tooltip = document.getElementById('global-tooltip');
 const removeContainer = document.getElementById('tt-remove-container');
 const editContainer = document.getElementById('tt-edit-container');
 
-// Получаем текущий station_id из URL
 function getStationId() {
     return new URLSearchParams(window.location.search).get('station_id') || '1';
 }
@@ -234,12 +233,19 @@ function openTooltip(el, id, num, owner, org, note, arrival, locIso, globIso, tr
     activeWagonLocal = locIso ? locIso.replace('T', ' ') : '';
     document.querySelectorAll('.wagon').forEach(w => w.classList.remove('active'));
     el.classList.add('active');
-    const allowedTracks = ["Ст. Черкасов Камень", "Пост №2"];
-    if (allowedTracks.includes(trackName.trim())) {
+    
+    // Определяем, показывать ли кнопку "Убрать в архив"
+    // 1. По флагу (если передан)
+    const isReturnTrackFlag = el.dataset.isReturnTrack === 'true';
+    // 2. По имени пути (надёжный запасной вариант)
+    const trackNameFromAttr = el.dataset.trackName || '';
+    const isReturnTrackByName = trackNameFromAttr.includes('Черкасов Камень') || trackNameFromAttr.includes('Пост №2');
+    if (isReturnTrackFlag || isReturnTrackByName) {
         removeContainer.style.display = 'block';
     } else {
         removeContainer.style.display = 'none';
     }
+    
     editContainer.style.display = 'block';
     const rect = el.getBoundingClientRect();
     let left = rect.right + 10;
@@ -503,6 +509,7 @@ function updateDashboard() {
                              data-loc-iso="${w.loc_iso}"
                              data-glob-iso="${w.glob_iso}"
                              data-track-name="${newTrack.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}"
+                             data-is-return-track="${w.is_return_track}"
                              data-loc-raw="${w.loc_raw}"
                              data-glob-raw="${w.glob_raw}">
                             <div class="wagon-number">${w.num.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
@@ -540,13 +547,11 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Запуск таймеров и обновления дашборда (только на главной странице)
 if (document.querySelector('.track-wrapper')) {
     setInterval(updateAllTimers, 1000);
     setInterval(updateDashboard, 5000);
 }
 
-// ==================== ФУНКЦИИ ДЛЯ СТРАНИЦ ИСТОРИИ И АРХИВА ====================
 function filterHistoryWagons() {
     const searchInput = document.getElementById('searchInput');
     if (!searchInput) return;
@@ -569,7 +574,6 @@ function filterHistoryWagons() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Поиск для истории/архива
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', filterHistoryWagons);
@@ -582,7 +586,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Кнопки редактирования даты в истории
     document.querySelectorAll('.edit-history-btn').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -610,7 +613,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// ===== ПЕРЕКЛЮЧЕНИЕ ТЁМНОЙ ТЕМЫ (персональная) =====
 function applyTheme(theme) {
     if (theme === 'dark') {
         document.documentElement.classList.add('dark');
@@ -622,32 +624,24 @@ function applyTheme(theme) {
     localStorage.setItem('theme', theme);
 }
 
-// Создаём кнопку переключения темы
 const themeToggleBtn = document.createElement('button');
 themeToggleBtn.id = 'themeToggle';
 themeToggleBtn.style.cssText = 'background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 10px;';
 themeToggleBtn.title = 'Сменить тему';
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Ищем контейнер для кнопки – расширяем список возможных контейнеров
     let targetContainer = document.querySelector('.nav-buttons');
     if (!targetContainer) targetContainer = document.querySelector('.header-actions');
     if (!targetContainer) targetContainer = document.querySelector('.nav-bar');
     if (targetContainer) {
         targetContainer.appendChild(themeToggleBtn);
-    } else {
-        console.warn('Не найден контейнер для кнопки темы');
     }
-    
-    // Загружаем сохранённую тему
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
         applyTheme('dark');
     } else {
         applyTheme('light');
     }
-    
-    // Обработчик клика
     themeToggleBtn.addEventListener('click', () => {
         const isDark = document.documentElement.classList.contains('dark');
         applyTheme(isDark ? 'light' : 'dark');

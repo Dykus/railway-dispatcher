@@ -15,29 +15,40 @@
 </head>
 <body>
 <div class="container">
-    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
-        <div style="display: flex; align-items: center; gap: 20px;">
+    <!-- ПЕРВАЯ СТРОКА: заголовок + версия (слева) и вкладки площадок (справа) -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
+        <div style="display: flex; flex-direction: column;">
             <h1 style="margin: 0;">🗄️ Архив</h1>
-            <div class="station-tabs" style="display: flex; gap: 10px;">
-                {% for station in stations_list %}
-                <a href="?station_id={{ station.id }}" class="btn {% if current_station_id == station.id %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">{{ station.name }}</a>
-                {% endfor %}
-            </div>
+            <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">Версия {{ version }}</div>
         </div>
-        <div class="nav-links" style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="/?station_id={{ current_station_id }}" class="nav-link">🏠 На главную</a>
-            <a href="/history?station_id={{ current_station_id }}" class="nav-link nav-link-history">📜 История</a>
-            <a href="/archive/export?station_id={{ current_station_id }}" class="nav-link nav-link-excel">📊 Скачать Excel (все вагоны)</a>
-            <a href="/help?station_id={{ current_station_id }}" class="nav-link nav-link-help">❓ Помощь</a>
+        <div class="station-tabs" style="display: flex; gap: 10px;">
+            {% for station in stations_list %}
+                {% if station.id == current_station_id %}
+                    <a href="?station_id={{ station.id }}" class="btn btn-primary" style="padding: 6px 16px;">{{ station.name }}</a>
+                {% else %}
+                    <a href="?station_id={{ station.id }}" class="btn" style="background: #95a5a6; padding: 6px 16px;">{{ station.name }}</a>
+                {% endif %}
+            {% endfor %}
         </div>
     </div>
 
+    <!-- ВТОРАЯ СТРОКА: основные кнопки + контейнер для кнопки темы (класс nav-buttons) -->
+    <div class="nav-links nav-buttons" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 20px;">
+        <a href="/?station_id={{ current_station_id }}" class="nav-link">🏠 На главную</a>
+        <a href="/history?station_id={{ current_station_id }}" class="nav-link nav-link-history">📜 История</a>
+        <a href="/archive/export?station_id={{ current_station_id }}" class="nav-link nav-link-excel">📊 Скачать Excel (все вагоны)</a>
+        <a href="/help?station_id={{ current_station_id }}" class="nav-link nav-link-help">❓ Помощь</a>
+        <!-- Сюда будет добавлена кнопка переключения темы через JavaScript -->
+    </div>
+
+    <!-- Поиск -->
     <div class="search-box">
         <input type="text" id="searchInput" placeholder="🔍 Поиск по номеру вагона..." autocomplete="off">
         <button id="clearSearch">Очистить</button>
     </div>
     <div id="noResultsMsg" class="no-results">❌ Ничего не найдено</div>
 
+    <!-- Архив -->
     <div id="archiveContainer">
     {% if not archive_groups %}
         <p>Архив пуст.</p>
