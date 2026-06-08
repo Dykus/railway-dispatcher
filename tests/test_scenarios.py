@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
 @pytest.fixture(scope='function')
 def app():
     tmp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
@@ -53,6 +54,7 @@ def client(app):
     return app.test_client()
 
 
+# ==================== СУЩЕСТВУЮЩИЕ ТЕСТЫ (17 штук) ====================
 def test_add_wagon_success(client):
     print("🚀 Запуск теста: добавление нового вагона")
     print("  Шаг 1: Отправляем данные нового вагона '12345678'...")
@@ -492,16 +494,13 @@ def test_restore_backup_reverts_database(client):
 
 
 def test_settings_page_and_update(client):
-    """Страница настроек доступна, изменение параметра сохраняется в БД."""
     print("🚀 Запуск теста: страница настроек и изменение параметра")
-
     print("  Шаг 1: Запрашиваем /admin/settings...")
     resp = client.get('/admin/settings?station_id=1')
     assert resp.status_code == 200
     html = resp.data.decode('utf-8')
     assert 'Настройки приложения' in html
     print("    ✓ Страница настроек загружена")
-
     print("  Шаг 2: Отправляем новые настройки (refresh_interval=10)...")
     resp = client.post('/admin/settings?station_id=1', data={
         'refresh_interval': '10',
@@ -517,13 +516,10 @@ def test_settings_page_and_update(client):
     assert resp.status_code == 200
     assert 'Настройки сохранены' in resp.data.decode('utf-8')
     print("    ✓ Сообщение об успехе получено")
-
     from app.models import get_setting
-    # Теперь get_setting принимает station_id, передаём 1
     interval = get_setting('refresh_interval', '5', station_id=1)
     assert interval == '10', f"refresh_interval должен стать 10, а равен {interval}"
     print(f"    ✓ refresh_interval сохранён как {interval}")
-
     print("  Шаг 3: Проверяем, что viewer не может зайти в настройки...")
     from app.models import get_conn
     conn = get_conn()
@@ -656,4 +652,334 @@ def test_rename_track_via_settings(client):
         }, environ_base={'REMOTE_ADDR': '10.0.0.70'})
         assert resp.status_code == 403
     print("    ✓ Доступ запрещён (403)")
+    print("🏁 Тест завершён успешно\n")
+
+
+# ==================== НОВЫЕ ТЕСТЫ ====================
+
+def test_progressive_fine_settings_and_calculation(client):
+    """Проверка, что настройки прогрессивной шкалы сохраняются и штраф считается правильно"""
+    print("🚀 Запуск теста: прогрессивная шкала штрафов")
+    print("  Шаг 1: Устанавливаем прогрессивные настройки для площадки 2...")
+    response = client.post('/admin/settings?station_id=2', data={
+        'overstay_progressive': '1',
+        'overstay_fixed_rate': '2000',
+        'overstay_range1_limit': '3',
+        'overstay_range1_rate': '1000',
+        'overstay_range2_limit': '5',
+        'overstay_range2_rate': '1500',
+        'overstay_range3_rate': '2000',
+        'port': '5000',
+        'secret_key': 'test',
+        'backup_hour': '3',
+        'backup_keep_count': '30',
+        'log_max_mb': '5',
+        'log_backup_count': '5',
+        'refresh_interval': '5',
+        'default_wagon_length': '10.0',
+        'wagon_spacing': '50.0'
+    })
+    assert response.status_code == 302
+    print("    ✓ Настройки сохранены")
+
+    from app.models import get_setting, calculate_overstay, get_conn
+
+    # Проверяем, что настройки записались
+    prog = get_setting('overstay_progressive', '0', station_id=2)
+    assert prog == '1', "Прогрессивная шкала не включилась"
+
+    # Создаём архивный вагон
+    print("  Шаг 2: Создаём вагон...")
+    client.post('/add?station_id=2', data={
+        'number': 'FINETEST', 'owner': 'ТК', 'organization': 'Орг',
+        'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0',
+        'start_date': '2026-06-01', 'start_time': '00:00'
+    })
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number = 'FINETEST' AND station_id=2")
+    visit_id = c.fetchone()[0]
+    conn.close()
+
+    # Перемещаем на возвратный путь и архивируем
+    client.post('/move?station_id=2', data={
+        'wagon_id': str(visit_id), 'new_track_id': '2',
+        'local_days': '0', 'local_hours': '0', 'local_mins': '0', 'note': ''
+    })
+    client.post(f'/depart/{visit_id}?station_id=2')
+
+    # Устанавливаем даты для перепростоя 5 суток
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("UPDATE wagon_visits SET arrival_time='2026-06-01 00:00:00', departure_time='2026-06-02 00:00:00' WHERE id=?", (visit_id,))
+    c.execute("UPDATE archived_history SET timestamp='2026-06-06 00:00:00' WHERE visit_id=?", (visit_id,))
+    conn.commit()
+    conn.close()
+
+    overstay, amount = calculate_overstay(visit_id)
+    # Расчёт: порог1=3 (1000), порог2=5 (1500), свыше=2000.
+    # перепростой=5 → 3*1000 + 2*1500 = 3000 + 3000 = 6000
+    expected = 6000
+    print(f"    Расчёт: перепростой={overstay} сут, сумма={amount} руб, ожидалось {expected} руб")
+    assert overstay == 5, f"Перепростой должен быть 5, получено {overstay}"
+    assert amount == expected, f"Сумма должна быть {expected}, получена {amount}"
+    print("🏁 Тест завершён успешно\n")
+
+
+def test_fixed_fine_rate_per_station(client):
+    """Фиксированная ставка для разных площадок должна работать независимо"""
+    print("🚀 Запуск теста: фиксированная ставка для площадки 1")
+    # Устанавливаем для площадки 1 фиксированную ставку 3000
+    client.post('/admin/settings?station_id=1', data={
+        'overstay_progressive': '0',
+        'overstay_fixed_rate': '3000',
+        'overstay_range1_limit': '4',
+        'overstay_range1_rate': '1000',
+        'overstay_range2_limit': '7',
+        'overstay_range2_rate': '1500',
+        'overstay_range3_rate': '2000',
+        'port': '5000',
+        'secret_key': 'test',
+        'backup_hour': '3',
+        'backup_keep_count': '30',
+        'log_max_mb': '5',
+        'log_backup_count': '5',
+        'refresh_interval': '5',
+        'default_wagon_length': '10.0',
+        'wagon_spacing': '50.0'
+    })
+    from app.models import get_setting, get_conn, calculate_overstay
+    fixed = get_setting('overstay_fixed_rate', '0', station_id=1)
+    assert fixed == '3000', f"Фиксированная ставка не сохранилась: {fixed}"
+
+    # Создаём вагон на площадке 1
+    client.post('/add?station_id=1', data={
+        'number': 'FIXTEST', 'owner': 'ТК', 'organization': 'Орг',
+        'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number='FIXTEST' AND station_id=1")
+    visit_id = c.fetchone()[0]
+    conn.close()
+
+    client.post('/move?station_id=1', data={
+        'wagon_id': str(visit_id), 'new_track_id': '2',
+        'local_days': '0', 'local_hours': '0', 'local_mins': '0', 'note': ''
+    })
+    client.post(f'/depart/{visit_id}?station_id=1')
+
+    # Корректируем даты (перепростой 5 суток)
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("UPDATE wagon_visits SET arrival_time='2026-06-01 00:00:00', departure_time='2026-06-02 00:00:00' WHERE id=?", (visit_id,))
+    c.execute("UPDATE archived_history SET timestamp='2026-06-06 00:00:00' WHERE visit_id=?", (visit_id,))
+    conn.commit()
+    conn.close()
+
+    overstay, amount = calculate_overstay(visit_id)
+    expected = 5 * 3000
+    print(f"    Перепростой={overstay}, фикс.ставка=3000 → сумма={amount}, ожидалось {expected}")
+    assert overstay == 5
+    assert amount == expected
+    print("🏁 Тест завершён успешно\n")
+
+
+def test_move_wagon_to_another_station(client):
+    """Перенос вагона между площадками с сохранением истории"""
+    print("🚀 Запуск теста: перенос вагона на другую площадку")
+    # Добавляем вагон на площадку 1
+    client.post('/add?station_id=1', data={
+        'number': 'MOVETEST', 'owner': 'ТК', 'organization': 'Орг',
+        'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number='MOVETEST' AND station_id=1")
+    visit_id = c.fetchone()[0]
+    conn.close()
+
+    # Перемещаем его на площадку 2 (путь 9 - "Ст. Черкасов Камень" для второй площадки)
+    response = client.post('/move_to_station', data={
+        'visit_id': str(visit_id),
+        'target_station_id': '2',
+        'target_track_id': '9'
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True, f"Перенос не удался: {data.get('message')}"
+    print(f"    ✓ {data['message']}")
+
+    # Проверяем, что вагон теперь на площадке 2
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT station_id, track_id FROM wagon_visits WHERE id=?", (visit_id,))
+    station_id, track_id = c.fetchone()
+    conn.close()
+    assert station_id == 2, f"Вагон не перенесён на площадку 2 (остался на {station_id})"
+    assert track_id == 9, f"Вагон не на правильном пути (путь {track_id})"
+    print("    ✓ Вагон корректно перемещён на целевую площадку")
+
+    # Проверяем историю: она должна быть привязана к площадке 2
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT station_id FROM movement_history WHERE wagon_number='MOVETEST'")
+    rows = c.fetchall()
+    conn.close()
+    for row in rows:
+        assert row[0] == 2, f"История осталась на старой площадке {row[0]}"
+    print("    ✓ История перемещена на новую площадку")
+    print("🏁 Тест завершён успешно\n")
+
+
+def test_move_wagon_compacts_both_tracks(client):
+    """При переносе вагона старый путь уплотняется, новый путь уплотняется (без дыр)"""
+    print("🚀 Запуск теста: уплотнение путей при переносе между площадками")
+    # На площадке 1 создаём три вагона на одном пути
+    for i in range(1, 4):
+        client.post('/add?station_id=1', data={
+            'number': f'COMP{i}', 'owner': 'ТК', 'organization': 'Орг',
+            'track_id': '3', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+        })
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id, wagon_number, start_pos FROM wagon_visits WHERE track_id=3 AND station_id=1 ORDER BY start_pos")
+    before = c.fetchall()
+    # Запоминаем позиции
+    positions_before = {row[1]: row[2] for row in before}
+    print(f"    Позиции до переноса: {positions_before}")
+    # Удаляем средний вагон (COMP2)
+    target_id = None
+    for row in before:
+        if row[1] == 'COMP2':
+            target_id = row[0]
+            break
+    assert target_id is not None
+
+    # Переносим COMP2 на площадку 2, путь 11
+    resp = client.post('/move_to_station', data={
+        'visit_id': str(target_id),
+        'target_station_id': '2',
+        'target_track_id': '11'
+    })
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data['success'] is True
+
+    # Проверяем уплотнение на исходном пути (площадка 1, путь 3)
+    c.execute("SELECT wagon_number, start_pos FROM wagon_visits WHERE track_id=3 AND station_id=1 ORDER BY start_pos")
+    after_source = c.fetchall()
+    positions_after = {row[0]: row[1] for row in after_source}
+    print(f"    Позиции после переноса (исходный путь): {positions_after}")
+    # Должны остаться COMP1 и COMP3, COMP1 на позиции 0, COMP3 на позиции 60
+    assert positions_after.get('COMP1') == 0.0, f"COMP1 не на 0: {positions_after.get('COMP1')}"
+    assert positions_after.get('COMP3') == 60.0, f"COMP3 не на 60: {positions_after.get('COMP3')}"
+
+    # Проверяем уплотнение на целевом пути (площадка 2, путь 11)
+    c.execute("SELECT wagon_number, start_pos FROM wagon_visits WHERE track_id=11 AND station_id=2 ORDER BY start_pos")
+    target_wagons = c.fetchall()
+    print(f"    Позиции на целевом пути: {target_wagons}")
+    # COMP2 должен быть на 0, так как был единственным на целевом пути
+    assert len(target_wagons) == 1, f"На целевом пути не один вагон: {len(target_wagons)}"
+    assert target_wagons[0][0] == 'COMP2', "Не тот вагон на целевом пути"
+    assert target_wagons[0][1] == 0.0, f"COMP2 не на позиции 0: {target_wagons[0][1]}"
+    conn.close()
+    print("    ✓ Уплотнение путей работает")
+    print("🏁 Тест завершён успешно\n")
+
+
+def test_archive_button_only_on_return_track(client):
+    """Кнопка архивации должна быть доступна только на возвратных путях"""
+    print("🚀 Запуск теста: кнопка архивации на возвратном пути")
+    # Возвратный путь на первой площадке – "Ст. Черкасов Камень" (id=1) и "Пост №2" (id=2)
+    # Добавляем вагон на обычный путь
+    client.post('/add?station_id=1', data={
+        'number': 'ARCHBUTTON', 'owner': 'ТК', 'organization': 'Орг',
+        'track_id': '3', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id, wagon_number, track_id FROM wagon_visits WHERE wagon_number='ARCHBUTTON' AND station_id=1")
+    row = c.fetchone()
+    visit_id, wagon_num, track_id = row
+    conn.close()
+
+    # Перемещаем на возвратный путь (id=1)
+    client.post('/move?station_id=1', data={
+        'wagon_id': str(visit_id), 'new_track_id': '1',
+        'local_days': '0', 'local_hours': '0', 'local_mins': '0', 'note': ''
+    })
+    # Архивация должна пройти успешно
+    resp = client.post(f'/depart/{visit_id}?station_id=1')
+    assert resp.status_code == 302  # редирект на главную
+    # Проверяем, что вагон действительно в архиве
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT is_archived FROM wagon_visits WHERE id=?", (visit_id,))
+    archived = c.fetchone()[0]
+    conn.close()
+    assert archived == 1, "Вагон не архивировался после перемещения на возвратный путь"
+    print("    ✓ Архивация с возвратного пути работает")
+    print("🏁 Тест завершён успешно\n")
+
+
+def test_move_wagon_conflict_same_number(client):
+    """Нельзя перенести вагон на площадку, где уже есть активный вагон с таким номером"""
+    print("🚀 Запуск теста: защита от конфликта номеров при переносе")
+    # Создаём вагон на площадке 1
+    client.post('/add?station_id=1', data={
+        'number': 'CONFLICT', 'owner': 'ТК', 'organization': 'Орг',
+        'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+    # Создаём такой же номер на площадке 2 (активный)
+    client.post('/add?station_id=2', data={
+        'number': 'CONFLICT', 'owner': 'ТК2', 'organization': 'Орг2',
+        'track_id': '9', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number='CONFLICT' AND station_id=1 AND is_archived=0")
+    visit_id = c.fetchone()[0]
+    conn.close()
+
+    # Пытаемся перенести вагон с площадки 1 на площадку 2
+    resp = client.post('/move_to_station', data={
+        'visit_id': str(visit_id),
+        'target_station_id': '2',
+        'target_track_id': '10'
+    })
+    assert resp.status_code == 400  # ошибка
+    data = resp.get_json()
+    assert 'активный вагон с таким номером' in data['message'].lower()
+    print(f"    ✓ Ошибка: {data['message']}")
+    print("🏁 Тест завершён успешно\n")
+
+
+def test_move_wagon_to_same_station_fails(client):
+    """Перенос на ту же площадку должен отклоняться"""
+    print("🚀 Запуск теста: защита от переноса на ту же площадку")
+    client.post('/add?station_id=1', data={
+        'number': 'SAMESTATION', 'owner': 'ТК', 'organization': 'Орг',
+        'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+    })
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number='SAMESTATION' AND station_id=1")
+    visit_id = c.fetchone()[0]
+    conn.close()
+
+    resp = client.post('/move_to_station', data={
+        'visit_id': str(visit_id),
+        'target_station_id': '1',
+        'target_track_id': '2'
+    })
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert 'уже находится на этой площадке' in data['message']
+    print(f"    ✓ Ошибка: {data['message']}")
     print("🏁 Тест завершён успешно\n")
