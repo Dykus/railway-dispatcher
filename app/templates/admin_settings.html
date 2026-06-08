@@ -23,7 +23,7 @@
             <a href="/admin/logs?station_id={{ current_station_id }}" class="btn btn-primary"> Журнал действий</a>
             <a href="/admin/ip_users?station_id={{ current_station_id }}" class="btn btn-primary">🔗 Привязка IP</a>
             <a href="/admin/backups?station_id={{ current_station_id }}" class="btn btn-primary">💾 Бэкапы</a>
-            <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn btn-primary">📋 Список изменений</a>
+            <a href="/admin/changelog?station_id={{ current_station_id }}" class="btn btn-primary"> Список изменений</a>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -36,7 +36,8 @@
 
         <form method="POST" action="/admin/settings?station_id={{ current_station_id }}">
             <div class="settings-section">
-                <h3> Глобальные настройки</h3>
+                <h3> Глобальные настройки (общие для всех площадок)</h3>
+
                 <h4>🏭 Названия площадок</h4>
                 {% for station in stations_list %}
                 <div class="form-row" style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
@@ -44,19 +45,22 @@
                     <input type="text" name="station_name_{{ station.id }}" value="{{ station.name }}" style="flex:1;">
                 </div>
                 {% endfor %}
+                <p style="color: #7f8c8d; font-size: 12px;">Названия отображаются на вкладках во всём интерфейсе.</p>
 
                 <h4> Основные</h4>
                 <div class="form-row">
                     <label>Порт сервера:</label>
                     <input type="number" name="port" value="{{ settings.get('port', '5000') }}" min="1024" max="65535">
+                    <span style="color: #7f8c8d; font-size: 12px;">Требуется перезапуск приложения</span>
                 </div>
                 <div class="form-row">
                     <label>Секретный ключ:</label>
                     <input type="text" name="secret_key" value="{{ settings.get('secret_key', '') }}" style="font-family: monospace;">
                     <button type="button" onclick="document.querySelector('input[name=secret_key]').value = Array.from({length: 32}, () => 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36))).join('')" style="margin-left:10px;">🔄 Сгенерировать</button>
+                    <span style="color: #7f8c8d; font-size: 12px;">После смены все пользователи будут разлогинены</span>
                 </div>
 
-                <h4> Резервное копирование</h4>
+                <h4>💾 Резервное копирование</h4>
                 <div class="form-row">
                     <label>Час авт. бэкапа (0-23):</label>
                     <input type="number" name="backup_hour" value="{{ settings.get('backup_hour', '3') }}" min="0" max="23">
@@ -66,9 +70,12 @@
                     <input type="number" name="backup_keep_count" value="{{ settings.get('backup_keep_count', '30') }}" min="1">
                 </div>
 
-                <h4>🗄️ Удалённое копирование</h4>
+                <h4>🗄️ Удалённое копирование (сетевая папка)</h4>
                 <div class="form-row">
-                    <label><input type="checkbox" name="remote_enabled" {% if settings.get('remote_enabled', '0') == '1' %}checked{% endif %}> Включить копирование</label>
+                    <label>
+                        <input type="checkbox" name="remote_enabled" {% if settings.get('remote_enabled', '0') == '1' %}checked{% endif %}>
+                        Включить копирование
+                    </label>
                 </div>
                 <div class="form-row">
                     <label>Сетевой путь (UNC):</label>
@@ -101,13 +108,13 @@
                 <div class="form-row">
                     <label>
                         <input type="checkbox" name="overstay_progressive" id="overstay_progressive" {% if settings.get('overstay_progressive', '0') == '1' %}checked{% endif %}>
-                        Прогрессивная шкала (по дням)
+                        Прогрессивная шкала (по диапазонам суток)
                     </label>
                 </div>
 
                 <div id="fixed_rate_block" {% if settings.get('overstay_progressive', '0') == '1' %}style="display:none;"{% endif %}>
                     <div class="form-row">
-                        <label>Ставка (руб/сут):</label>
+                        <label>Фиксированная ставка (руб/сут):</label>
                         <input type="number" name="overstay_fixed_rate" value="{{ settings.get('overstay_fixed_rate', '2000') }}" min="0" step="100">
                     </div>
                     <p style="color: #7f8c8d; font-size: 12px;">Одна ставка за все дни перепростоя</p>
@@ -115,21 +122,24 @@
 
                 <div id="progressive_block" {% if settings.get('overstay_progressive', '0') != '1' %}style="display:none;"{% endif %}>
                     <div class="form-row">
-                        <label>День 1 (руб/сут):</label>
-                        <input type="number" name="overstay_day1_rate" value="{{ settings.get('overstay_day1_rate', '1000') }}" min="0" step="100">
+                        <label>Первый порог (сут):</label>
+                        <input type="number" name="overstay_range1_limit" value="{{ settings.get('overstay_range1_limit', '4') }}" min="1">
+                        <label>Ставка (руб/сут):</label>
+                        <input type="number" name="overstay_range1_rate" value="{{ settings.get('overstay_range1_rate', '2000') }}" min="0" step="100">
                     </div>
                     <div class="form-row">
-                        <label>День 2 (руб/сут):</label>
-                        <input type="number" name="overstay_day2_rate" value="{{ settings.get('overstay_day2_rate', '2000') }}" min="0" step="100">
+                        <label>Второй порог (сут):</label>
+                        <input type="number" name="overstay_range2_limit" value="{{ settings.get('overstay_range2_limit', '7') }}" min="1">
+                        <label>Ставка (руб/сут):</label>
+                        <input type="number" name="overstay_range2_rate" value="{{ settings.get('overstay_range2_rate', '2400') }}" min="0" step="100">
                     </div>
                     <div class="form-row">
-                        <label>День 3 (руб/сут):</label>
-                        <input type="number" name="overstay_day3_rate" value="{{ settings.get('overstay_day3_rate', '4000') }}" min="0" step="100">
+                        <label>Ставка свыше второго порога (руб/сут):</label>
+                        <input type="number" name="overstay_range3_rate" value="{{ settings.get('overstay_range3_rate', '3000') }}" min="0" step="100">
                     </div>
-                    <div class="form-row">
-                        <label>День 4 и далее (руб/сут):</label>
-                        <input type="number" name="overstay_day4_plus_rate" value="{{ settings.get('overstay_day4_plus_rate', '4000') }}" min="0" step="100">
-                    </div>
+                    <p style="color: #7f8c8d; font-size: 12px;">
+                        Пример: 1-4 сут = 2000₽/сут, 5-7 сут = 2400₽/сут, 8+ сут = 3000₽/сут
+                    </p>
                 </div>
 
                 <h4>🖥️ Интерфейс</h4>
@@ -138,7 +148,7 @@
                     <input type="number" name="refresh_interval" value="{{ settings.get('refresh_interval', '5') }}" min="1">
                 </div>
 
-                <h4>🛤️ Пути и вагоны</h4>
+                <h4>️ Пути и вагоны</h4>
                 <div class="form-row">
                     <label>Длина нового вагона (м):</label>
                     <input type="number" name="default_wagon_length" value="{{ settings.get('default_wagon_length', '10.0') }}" min="1" step="0.1">
@@ -163,7 +173,12 @@
                         <tr data-track-id="{{ track[0] }}">
                             <td>{{ track[1] }}</td>
                             <td>{{ track[2] }}</td>
-                            <td>{% if track[3] == 'normal' %}Обычный{% elif track[3] == 'return' %}Возвратный{% else %}{{ track[3] }}{% endif %}</td>
+                            <td>
+                                {% if track[3] == 'normal' %}Обычный
+                                {% elif track[3] == 'return' %}Возвратный
+                                {% else %}{{ track[3] }}
+                                {% endif %}
+                            </td>
                             <td>
                                 <button type="button" class="btn btn-warning" onclick="editTrack({{ track[0] }}, '{{ track[1] }}', '{{ track[2] }}', '{{ track[3] }}')">✏️</button>
                                 <button type="button" class="btn btn-danger" onclick="deleteTrack({{ track[0] }})">🗑️</button>
@@ -174,11 +189,11 @@
                         {% endfor %}
                     </tbody>
                 </table>
-                <button type="button" class="btn btn-success" onclick="document.getElementById('addTrackModal').style.display='flex'"> Добавить путь</button>
+                <button type="button" class="btn btn-success" onclick="document.getElementById('addTrackModal').style.display='flex'">➕ Добавить путь</button>
                 <button type="button" class="btn btn-primary" onclick="saveTracksOrder()">💾 Сохранить порядок путей</button>
             </div>
 
-            <button type="submit" class="btn btn-success" style="margin-top:20px; padding:15px 30px; font-size:16px;"> Сохранить все настройки</button>
+            <button type="submit" class="btn btn-success" style="margin-top:20px; padding:15px 30px; font-size:16px;">💾 Сохранить все настройки</button>
         </form>
     </div>
 

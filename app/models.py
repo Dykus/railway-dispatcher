@@ -1,5 +1,8 @@
 # app/models.py
 # -*- coding: utf-8 -*-
+"""
+Модели данных и функции работы с базой данных.
+"""
 import os
 import glob
 import shutil
@@ -15,6 +18,7 @@ from app.utils import (
     get_conn, is_return_track, clean_note_for_db, log_action, format_date
 )
 
+# ==================== ИНИЦИАЛИЗАЦИЯ БД ====================
 def init_db():
     conn = get_conn()
     c = conn.cursor()
@@ -98,6 +102,7 @@ def init_db():
         correct_pk = 'PRIMARY KEY' in cs and 'STATION_ID' in cs and 'KEY' in cs
 
     if not has_station_id or not correct_pk:
+        print("[МИГРАЦИЯ] Исправление таблицы app_settings...")
         c.execute("SELECT key, value, COALESCE(station_id, 0) FROM app_settings")
         old_data = c.fetchall()
         c.execute("DROP TABLE IF EXISTS app_settings")
@@ -105,6 +110,7 @@ def init_db():
         for key, value, sid in old_data:
             c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, value, sid))
         conn.commit()
+        print("[МИГРАЦИЯ] Таблица app_settings исправлена.")
 
     c.execute("SELECT COUNT(*) FROM app_settings")
     if c.fetchone()[0] == 0:
@@ -181,6 +187,10 @@ def migrate_to_stations():
     conn.close()
 
 def migrate_fine_settings():
+    """
+    Добавляет настройки штрафов для каждой площадки.
+    НЕ сбрасывает пользовательские значения.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute("DELETE FROM app_settings WHERE key LIKE 'overstay_%' AND station_id = 0")
@@ -191,16 +201,21 @@ def migrate_fine_settings():
     default_settings = {
         'overstay_progressive': '0',
         'overstay_fixed_rate': '2000',
-        'overstay_day1_rate': '1000',
-        'overstay_day2_rate': '2000',
-        'overstay_day3_rate': '4000',
-        'overstay_day4_plus_rate': '4000'
+        'overstay_range1_limit': '4',
+        'overstay_range1_rate': '2000',
+        'overstay_range2_limit': '7',
+        'overstay_range2_rate': '2400',
+        'overstay_range3_rate': '3000'
     }
+
     for sid in stations:
         for key, default_val in default_settings.items():
-            c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, default_val, sid))
+            c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
+                      (key, default_val, sid))
+
     conn.commit()
     conn.close()
+    print("[МИГРАЦИЯ] Настройки штрафов приведены в порядок (без изменения существующих).")
 
 def get_setting(key, default=None, station_id=None):
     conn = get_conn()
@@ -213,13 +228,18 @@ def get_setting(key, default=None, station_id=None):
             return row[0]
         c.execute("SELECT value FROM app_settings WHERE key = ? AND station_id = 0", (key,))
         row = c.fetchone()
+        if row:
+            conn.close()
+            return row[0]
         conn.close()
-        return row[0] if row else default
+        return default
     else:
         c.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
         row = c.fetchone()
         conn.close()
-        return row[0] if row else default
+        if row:
+            return row[0]
+        return default
 
 def set_setting(key, value, station_id=0):
     conn = get_conn()
@@ -832,18 +852,25 @@ def calculate_overstay(visit_id):
     progressive = get_setting('overstay_progressive', '0', station_id) == '1'
     
     if progressive:
-        rate1 = float(get_setting('overstay_day1_rate', '1000', station_id))
-        rate2 = float(get_setting('overstay_day2_rate', '2000', station_id))
-        rate3 = float(get_setting('overstay_day3_rate', '4000', station_id))
-        rate4_plus = float(get_setting('overstay_day4_plus_rate', '4000', station_id))
+        # Прогрессивная шкала по диапазонам суток
+        range1_limit = int(get_setting('overstay_range1_limit', '4', station_id))
+        range1_rate = float(get_setting('overstay_range1_rate', '2000', station_id))
+        range2_limit = int(get_setting('overstay_range2_limit', '7', station_id))
+        range2_rate = float(get_setting('overstay_range2_rate', '2400', station_id))
+        range3_rate = float(get_setting('overstay_range3_rate', '3000', station_id))
         
         amount = 0.0
-        for day in range(1, overstay + 1):
-            if day == 1: amount += rate1
-            elif day == 2: amount += rate2
-            elif day == 3: amount += rate3
-            else: amount += rate4_plus
+        days1 = min(overstay, range1_limit)
+        amount += days1 * range1_rate
+        remaining = overstay - days1
+        if remaining > 0:
+            days2 = min(remaining, range2_limit - range1_limit)
+            amount += days2 * range2_rate
+            remaining -= days2
+            if remaining > 0:
+                amount += remaining * range3_rate
     else:
+        # Фиксированная ставка
         fixed_rate = float(get_setting('overstay_fixed_rate', '2000', station_id))
         amount = overstay * fixed_rate
 
