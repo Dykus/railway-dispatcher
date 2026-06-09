@@ -34,3 +34,6 @@ RailwayDispatcher_v4_beta.exe
 # Возможные временные файлы из Excel
 ~$*.xlsx
 ~$*.xlsm
+
+
+report.html
