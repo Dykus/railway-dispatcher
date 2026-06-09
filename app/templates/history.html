@@ -32,11 +32,12 @@
         </div>
     </div>
 
-    <!-- ВТОРАЯ СТРОКА: основные кнопки + контейнер для кнопки темы (класс nav-buttons) -->
+    <!-- ВТОРАЯ СТРОКА: основные кнопки + контейнер для кнопки темы -->
     <div class="nav-links nav-buttons" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 20px;">
         <a href="/?station_id={{ current_station_id }}" class="nav-link">🏠 На главную</a>
         <a href="/archive?station_id={{ current_station_id }}" class="nav-link nav-link-archive">🗄️ Архив</a>
         <a href="/export_history_excel?station_id={{ current_station_id }}" class="nav-link nav-link-excel">📊 Скачать Excel (все вагоны)</a>
+        <a href="/export_active_wagons_excel?station_id={{ current_station_id }}" class="nav-link nav-link-excel" style="background: #e67e22;">📊 Excel: перепростой на сегодня</a>
         <a href="/help?station_id={{ current_station_id }}" class="nav-link nav-link-help">❓ Помощь</a>
         <!-- Сюда будет добавлена кнопка переключения темы через JavaScript -->
     </div>
@@ -64,7 +65,15 @@
                 <div class="details-content">
                     <table class="history-table">
                         <thead>
-                            <tr><th>Действие</th><th>Откуда</th><th>Куда</th><th>ТК</th><th>Орг</th><th>Примечание</th><th>Время</th></tr>
+                            <tr>
+                                <th>Действие</th>
+                                <th>Откуда</th>
+                                <th>Куда</th>
+                                <th>ТК</th>
+                                <th>Орг</th>
+                                <th>Примечание</th>
+                                <th>Время</th>
+                            </tr>
                         </thead>
                         <tbody>
                             {% for ev in item.events %}

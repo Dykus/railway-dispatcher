@@ -58,17 +58,20 @@ def create_app():
             if not role:
                 role = 'viewer'
 
+        # Все маршруты, доступные для любого авторизованного пользователя (включая наблюдателя)
         public_endpoints = [
-            'main.index', 'history.history_page', 'history.archive_page', 'main.help_page',
-            'api.api_status', 'api.get_wagon_info', 'api.api_dashboard_data', 'static',
+            'main.index', 'history.history_page', 'history.archive_page', 'main.help_page', 'main.about_page',
+            'api.api_status', 'api.get_wagon_info', 'api.api_dashboard_data', 'api.get_tracks_by_station', 'static',
             'export.export_excel', 'export.export_history_excel', 'export.export_archive_excel',
-            'export.export_wagon_history', 'export.export_wagon_archive'
+            'export.export_wagon_history', 'export.export_wagon_archive', 'export.export_active_wagons_excel',
+            'history.archive_export_filter'  # страница фильтра архива (доступна всем)
         ]
         dispatcher_endpoints = ['main.add_wagon', 'main.move_action', 'main.depart_action']
         supervisor_endpoints = ['admin.edit_wagon_route', 'admin.edit_history']
         admin_endpoints = [
             'admin.create_backup', 'admin.list_backups', 'admin.download_backup', 'admin.restore_backup',
-            'admin.view_logs', 'admin.export_logs_excel', 'admin.manage_ip_users', 'admin.changelog'
+            'admin.view_logs', 'admin.export_logs_excel', 'admin.manage_ip_users', 'admin.changelog',
+            'admin.settings', 'admin.save_tracks_order', 'admin.rename_station'
         ]
 
         if endpoint in public_endpoints:

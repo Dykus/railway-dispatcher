@@ -21,17 +21,19 @@
         .filter-form .row > div { flex: 1; }
         .filter-form button { width: 100%; margin-top: 20px; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; }
         .filter-form button:hover { background: #2ecc71; }
-        .nav-link { text-align: center; display: block; margin-bottom: 20px; color: #3498db; text-decoration: none; }
+        .back-link { text-align: center; display: block; margin-bottom: 20px; color: #2980b9; text-decoration: underline; font-weight: bold; }
+        .back-link:hover { color: #1f6392; }
         #periodFields, #yearField, #monthField { display: none; }
         html.dark .filter-form { background: #0f3460; color: #e0e0e0; }
         html.dark .filter-form h2 { color: #e0e0e0; }
         html.dark .filter-form select, html.dark .filter-form input { background: #1a1a2e; color: #e0e0e0; border-color: #2c3e50; }
+        html.dark .back-link { color: #66b0ff; }
     </style>
 </head>
 <body>
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <a href="/archive?station_id={{ current_station_id }}" class="nav-link">← Назад к архиву</a>
+        <a href="/archive?station_id={{ current_station_id }}" class="back-link">← Назад к архиву</a>
         <div class="station-tabs" style="display: flex; gap: 10px;">
             {% for station in stations_list %}
             <a href="?station_id={{ station.id }}" class="btn {% if current_station_id == station.id %}btn-primary{% else %}" style="background: #95a5a6;{% endif %} padding: 8px 18px; font-size: 14px;">{{ station.name }}</a>

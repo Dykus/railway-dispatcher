@@ -4,6 +4,8 @@ import sys
 import tempfile
 import re
 import pytest
+import io
+import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -377,8 +379,6 @@ def test_export_active_wagons_to_excel(client):
     assert response.status_code == 200
     assert 'spreadsheetml' in response.content_type
     print("    ✓ Получен Excel-файл")
-    import pandas as pd
-    import io
     df = pd.read_excel(io.BytesIO(response.data))
     assert 'Номер вагона' in df.columns
     assert len(df) == 2
@@ -407,8 +407,6 @@ def test_export_individual_wagon_history(client):
     assert response.status_code == 200
     assert 'spreadsheetml' in response.content_type
     print("    ✓ Файл получен")
-    import pandas as pd
-    import io
     df = pd.read_excel(io.BytesIO(response.data))
     assert 'Тип действия' in df.columns
     assert len(df) >= 2
@@ -655,8 +653,7 @@ def test_rename_track_via_settings(client):
     print("🏁 Тест завершён успешно\n")
 
 
-# ==================== НОВЫЕ ТЕСТЫ ====================
-
+# ==================== НОВЫЕ ТЕСТЫ (7 штук из предыдущей итерации) ====================
 def test_progressive_fine_settings_and_calculation(client):
     """Проверка, что настройки прогрессивной шкалы сохраняются и штраф считается правильно"""
     print("🚀 Запуск теста: прогрессивная шкала штрафов")
@@ -684,11 +681,9 @@ def test_progressive_fine_settings_and_calculation(client):
 
     from app.models import get_setting, calculate_overstay, get_conn
 
-    # Проверяем, что настройки записались
     prog = get_setting('overstay_progressive', '0', station_id=2)
     assert prog == '1', "Прогрессивная шкала не включилась"
 
-    # Создаём архивный вагон
     print("  Шаг 2: Создаём вагон...")
     client.post('/add?station_id=2', data={
         'number': 'FINETEST', 'owner': 'ТК', 'organization': 'Орг',
@@ -701,14 +696,12 @@ def test_progressive_fine_settings_and_calculation(client):
     visit_id = c.fetchone()[0]
     conn.close()
 
-    # Перемещаем на возвратный путь и архивируем
     client.post('/move?station_id=2', data={
         'wagon_id': str(visit_id), 'new_track_id': '2',
         'local_days': '0', 'local_hours': '0', 'local_mins': '0', 'note': ''
     })
     client.post(f'/depart/{visit_id}?station_id=2')
 
-    # Устанавливаем даты для перепростоя 5 суток
     conn = get_conn()
     c = conn.cursor()
     c.execute("UPDATE wagon_visits SET arrival_time='2026-06-01 00:00:00', departure_time='2026-06-02 00:00:00' WHERE id=?", (visit_id,))
@@ -717,9 +710,7 @@ def test_progressive_fine_settings_and_calculation(client):
     conn.close()
 
     overstay, amount = calculate_overstay(visit_id)
-    # Расчёт: порог1=3 (1000), порог2=5 (1500), свыше=2000.
-    # перепростой=5 → 3*1000 + 2*1500 = 3000 + 3000 = 6000
-    expected = 6000
+    expected = 6000  # 3*1000 + 2*1500
     print(f"    Расчёт: перепростой={overstay} сут, сумма={amount} руб, ожидалось {expected} руб")
     assert overstay == 5, f"Перепростой должен быть 5, получено {overstay}"
     assert amount == expected, f"Сумма должна быть {expected}, получена {amount}"
@@ -729,7 +720,6 @@ def test_progressive_fine_settings_and_calculation(client):
 def test_fixed_fine_rate_per_station(client):
     """Фиксированная ставка для разных площадок должна работать независимо"""
     print("🚀 Запуск теста: фиксированная ставка для площадки 1")
-    # Устанавливаем для площадки 1 фиксированную ставку 3000
     client.post('/admin/settings?station_id=1', data={
         'overstay_progressive': '0',
         'overstay_fixed_rate': '3000',
@@ -752,7 +742,6 @@ def test_fixed_fine_rate_per_station(client):
     fixed = get_setting('overstay_fixed_rate', '0', station_id=1)
     assert fixed == '3000', f"Фиксированная ставка не сохранилась: {fixed}"
 
-    # Создаём вагон на площадке 1
     client.post('/add?station_id=1', data={
         'number': 'FIXTEST', 'owner': 'ТК', 'organization': 'Орг',
         'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
@@ -769,7 +758,6 @@ def test_fixed_fine_rate_per_station(client):
     })
     client.post(f'/depart/{visit_id}?station_id=1')
 
-    # Корректируем даты (перепростой 5 суток)
     conn = get_conn()
     c = conn.cursor()
     c.execute("UPDATE wagon_visits SET arrival_time='2026-06-01 00:00:00', departure_time='2026-06-02 00:00:00' WHERE id=?", (visit_id,))
@@ -788,7 +776,6 @@ def test_fixed_fine_rate_per_station(client):
 def test_move_wagon_to_another_station(client):
     """Перенос вагона между площадками с сохранением истории"""
     print("🚀 Запуск теста: перенос вагона на другую площадку")
-    # Добавляем вагон на площадку 1
     client.post('/add?station_id=1', data={
         'number': 'MOVETEST', 'owner': 'ТК', 'organization': 'Орг',
         'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
@@ -800,7 +787,6 @@ def test_move_wagon_to_another_station(client):
     visit_id = c.fetchone()[0]
     conn.close()
 
-    # Перемещаем его на площадку 2 (путь 9 - "Ст. Черкасов Камень" для второй площадки)
     response = client.post('/move_to_station', data={
         'visit_id': str(visit_id),
         'target_station_id': '2',
@@ -811,7 +797,6 @@ def test_move_wagon_to_another_station(client):
     assert data['success'] is True, f"Перенос не удался: {data.get('message')}"
     print(f"    ✓ {data['message']}")
 
-    # Проверяем, что вагон теперь на площадке 2
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT station_id, track_id FROM wagon_visits WHERE id=?", (visit_id,))
@@ -821,7 +806,6 @@ def test_move_wagon_to_another_station(client):
     assert track_id == 9, f"Вагон не на правильном пути (путь {track_id})"
     print("    ✓ Вагон корректно перемещён на целевую площадку")
 
-    # Проверяем историю: она должна быть привязана к площадке 2
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT station_id FROM movement_history WHERE wagon_number='MOVETEST'")
@@ -836,7 +820,6 @@ def test_move_wagon_to_another_station(client):
 def test_move_wagon_compacts_both_tracks(client):
     """При переносе вагона старый путь уплотняется, новый путь уплотняется (без дыр)"""
     print("🚀 Запуск теста: уплотнение путей при переносе между площадками")
-    # На площадке 1 создаём три вагона на одном пути
     for i in range(1, 4):
         client.post('/add?station_id=1', data={
             'number': f'COMP{i}', 'owner': 'ТК', 'organization': 'Орг',
@@ -847,10 +830,8 @@ def test_move_wagon_compacts_both_tracks(client):
     c = conn.cursor()
     c.execute("SELECT id, wagon_number, start_pos FROM wagon_visits WHERE track_id=3 AND station_id=1 ORDER BY start_pos")
     before = c.fetchall()
-    # Запоминаем позиции
     positions_before = {row[1]: row[2] for row in before}
     print(f"    Позиции до переноса: {positions_before}")
-    # Удаляем средний вагон (COMP2)
     target_id = None
     for row in before:
         if row[1] == 'COMP2':
@@ -858,7 +839,6 @@ def test_move_wagon_compacts_both_tracks(client):
             break
     assert target_id is not None
 
-    # Переносим COMP2 на площадку 2, путь 11
     resp = client.post('/move_to_station', data={
         'visit_id': str(target_id),
         'target_station_id': '2',
@@ -868,20 +848,16 @@ def test_move_wagon_compacts_both_tracks(client):
     data = resp.get_json()
     assert data['success'] is True
 
-    # Проверяем уплотнение на исходном пути (площадка 1, путь 3)
     c.execute("SELECT wagon_number, start_pos FROM wagon_visits WHERE track_id=3 AND station_id=1 ORDER BY start_pos")
     after_source = c.fetchall()
     positions_after = {row[0]: row[1] for row in after_source}
     print(f"    Позиции после переноса (исходный путь): {positions_after}")
-    # Должны остаться COMP1 и COMP3, COMP1 на позиции 0, COMP3 на позиции 60
     assert positions_after.get('COMP1') == 0.0, f"COMP1 не на 0: {positions_after.get('COMP1')}"
     assert positions_after.get('COMP3') == 60.0, f"COMP3 не на 60: {positions_after.get('COMP3')}"
 
-    # Проверяем уплотнение на целевом пути (площадка 2, путь 11)
     c.execute("SELECT wagon_number, start_pos FROM wagon_visits WHERE track_id=11 AND station_id=2 ORDER BY start_pos")
     target_wagons = c.fetchall()
     print(f"    Позиции на целевом пути: {target_wagons}")
-    # COMP2 должен быть на 0, так как был единственным на целевом пути
     assert len(target_wagons) == 1, f"На целевом пути не один вагон: {len(target_wagons)}"
     assert target_wagons[0][0] == 'COMP2', "Не тот вагон на целевом пути"
     assert target_wagons[0][1] == 0.0, f"COMP2 не на позиции 0: {target_wagons[0][1]}"
@@ -893,8 +869,6 @@ def test_move_wagon_compacts_both_tracks(client):
 def test_archive_button_only_on_return_track(client):
     """Кнопка архивации должна быть доступна только на возвратных путях"""
     print("🚀 Запуск теста: кнопка архивации на возвратном пути")
-    # Возвратный путь на первой площадке – "Ст. Черкасов Камень" (id=1) и "Пост №2" (id=2)
-    # Добавляем вагон на обычный путь
     client.post('/add?station_id=1', data={
         'number': 'ARCHBUTTON', 'owner': 'ТК', 'organization': 'Орг',
         'track_id': '3', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
@@ -907,15 +881,12 @@ def test_archive_button_only_on_return_track(client):
     visit_id, wagon_num, track_id = row
     conn.close()
 
-    # Перемещаем на возвратный путь (id=1)
     client.post('/move?station_id=1', data={
         'wagon_id': str(visit_id), 'new_track_id': '1',
         'local_days': '0', 'local_hours': '0', 'local_mins': '0', 'note': ''
     })
-    # Архивация должна пройти успешно
     resp = client.post(f'/depart/{visit_id}?station_id=1')
-    assert resp.status_code == 302  # редирект на главную
-    # Проверяем, что вагон действительно в архиве
+    assert resp.status_code == 302
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT is_archived FROM wagon_visits WHERE id=?", (visit_id,))
@@ -929,12 +900,10 @@ def test_archive_button_only_on_return_track(client):
 def test_move_wagon_conflict_same_number(client):
     """Нельзя перенести вагон на площадку, где уже есть активный вагон с таким номером"""
     print("🚀 Запуск теста: защита от конфликта номеров при переносе")
-    # Создаём вагон на площадке 1
     client.post('/add?station_id=1', data={
         'number': 'CONFLICT', 'owner': 'ТК', 'organization': 'Орг',
         'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
     })
-    # Создаём такой же номер на площадке 2 (активный)
     client.post('/add?station_id=2', data={
         'number': 'CONFLICT', 'owner': 'ТК2', 'organization': 'Орг2',
         'track_id': '9', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
@@ -946,13 +915,12 @@ def test_move_wagon_conflict_same_number(client):
     visit_id = c.fetchone()[0]
     conn.close()
 
-    # Пытаемся перенести вагон с площадки 1 на площадку 2
     resp = client.post('/move_to_station', data={
         'visit_id': str(visit_id),
         'target_station_id': '2',
         'target_track_id': '10'
     })
-    assert resp.status_code == 400  # ошибка
+    assert resp.status_code == 400
     data = resp.get_json()
     assert 'активный вагон с таким номером' in data['message'].lower()
     print(f"    ✓ Ошибка: {data['message']}")
@@ -982,4 +950,126 @@ def test_move_wagon_to_same_station_fails(client):
     data = resp.get_json()
     assert 'уже находится на этой площадке' in data['message']
     print(f"    ✓ Ошибка: {data['message']}")
+    print("🏁 Тест завершён успешно\n")
+
+
+# ==================== ДОПОЛНИТЕЛЬНЫЕ НОВЫЕ ТЕСТЫ (3 штуки) ====================
+def test_archive_export_filter_access(app):
+    """Страница фильтра архива доступна для всех авторизованных пользователей (включая наблюдателя)"""
+    print("🚀 Запуск теста: доступ к странице фильтра архива")
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO ip_users (ip_address, username, role, access_allowed) VALUES (?,?,?,?)",
+              ('10.0.0.100', 'supervisor_test', 'supervisor', 1))
+    c.execute("INSERT OR REPLACE INTO ip_users (ip_address, username, role, access_allowed) VALUES (?,?,?,?)",
+              ('10.0.0.101', 'viewer_test2', 'viewer', 1))
+    conn.commit()
+    conn.close()
+    print("  Шаг 1: Созданы пользователи supervisor и viewer")
+    with app.test_client() as client:
+        # Supervisor должен иметь доступ
+        resp = client.get('/archive/export?station_id=1', environ_base={'REMOTE_ADDR': '10.0.0.100'})
+        assert resp.status_code == 200, "Supervisor не имеет доступа к /archive/export"
+        print("    ✓ Supervisor имеет доступ к фильтру архива")
+        # Viewer теперь тоже должен иметь доступ (по новым правилам)
+        resp = client.get('/archive/export?station_id=1', environ_base={'REMOTE_ADDR': '10.0.0.101'})
+        assert resp.status_code == 200, "Viewer не имеет доступа к /archive/export"
+        print("    ✓ Viewer также имеет доступ")
+    print("🏁 Тест завершён успешно\n")
+
+
+def test_export_active_wagons_excel_access(app):
+    """Экспорт активных вагонов доступен для всех авторизованных пользователей (включая наблюдателя)"""
+    print("🚀 Запуск теста: доступ к экспорту активных вагонов")
+    from app.models import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO ip_users (ip_address, username, role, access_allowed) VALUES (?,?,?,?)",
+              ('10.0.0.102', 'supervisor_test2', 'supervisor', 1))
+    c.execute("INSERT OR REPLACE INTO ip_users (ip_address, username, role, access_allowed) VALUES (?,?,?,?)",
+              ('10.0.0.103', 'viewer_test3', 'viewer', 1))
+    conn.commit()
+    conn.close()
+    
+    # Добавляем тестовый вагон на площадку 1
+    with app.test_client() as client:
+        client.post('/add?station_id=1', data={
+            'number': 'TESTACTIVE', 'owner': 'ТК', 'organization': 'Орг',
+            'track_id': '1', 'cycle_days': '0', 'cycle_hours': '0', 'cycle_mins': '0'
+        })
+        print("  Шаг 1: Добавлен активный вагон TESTACTIVE")
+        
+        # Supervisor должен получить Excel
+        resp = client.get('/export_active_wagons_excel?station_id=1', environ_base={'REMOTE_ADDR': '10.0.0.102'})
+        assert resp.status_code == 200, "Supervisor не может скачать Excel активных вагонов"
+        assert 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' in resp.content_type
+        print("    ✓ Supervisor получил Excel-файл")
+        
+        # Viewer теперь тоже должен иметь доступ
+        resp = client.get('/export_active_wagons_excel?station_id=1', environ_base={'REMOTE_ADDR': '10.0.0.103'})
+        assert resp.status_code == 200, "Viewer не может скачать Excel активных вагонов"
+        assert 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' in resp.content_type
+        print("    ✓ Viewer также получил Excel-файл")
+    print("🏁 Тест завершён успешно\n")
+
+
+def test_export_active_wagons_calculation(client):
+    """Проверка, что Excel активных вагонов содержит правильный перепростой на текущую дату"""
+    print("🚀 Запуск теста: расчёт перепростоя в Excel активных вагонов")
+    # Создаём вагон с прибытием 1 июня, глобальным сроком 3 июня (2 дня разрешено)
+    client.post('/add?station_id=1', data={
+        'number': 'ACTIVEOVERSTAY', 'owner': 'ТК', 'organization': 'Орг',
+        'track_id': '1', 'cycle_days': '2', 'cycle_hours': '0', 'cycle_mins': '0',
+        'start_date': '2026-06-01', 'start_time': '00:00'
+    })
+    # Получаем visit_id
+    from app.models import get_conn, calculate_current_overstay
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id FROM wagon_visits WHERE wagon_number='ACTIVEOVERSTAY' AND station_id=1")
+    visit_id = c.fetchone()[0]
+    conn.close()
+
+    # Устанавливаем фиксированную ставку 1000 руб/сут для простоты
+    client.post('/admin/settings?station_id=1', data={
+        'overstay_progressive': '0',
+        'overstay_fixed_rate': '1000',
+        'overstay_range1_limit': '4',
+        'overstay_range1_rate': '1000',
+        'overstay_range2_limit': '7',
+        'overstay_range2_rate': '1500',
+        'overstay_range3_rate': '2000',
+        'port': '5000',
+        'secret_key': 'test',
+        'backup_hour': '3',
+        'backup_keep_count': '30',
+        'log_max_mb': '5',
+        'log_backup_count': '5',
+        'refresh_interval': '5',
+        'default_wagon_length': '10.0',
+        'wagon_spacing': '50.0'
+    })
+
+    # Экспортируем активные вагоны
+    response = client.get('/export_active_wagons_excel?station_id=1')
+    assert response.status_code == 200
+    df = pd.read_excel(io.BytesIO(response.data))
+    # Находим строку с нашим вагоном
+    row = df[df['Номер вагона'] == 'ACTIVEOVERSTAY']
+    assert not row.empty, "Вагон не найден в выгрузке"
+    overstay_col = row['Перепростой на текущую дату, сут'].values[0]
+    # Ожидаемый перепростой: с 1 июня по сегодня (календарные дни) минус 2 разрешённых дня
+    # В тестах используется временная БД, дата сегодня – это дата выполнения теста.
+    # Поскольку мы не можем точно предсказать дату, проверим, что значение не отрицательное и целое.
+    # Лучше: рассчитать ожидаемое значение через ту же функцию calculate_current_overstay.
+    expected = calculate_current_overstay(visit_id)
+    print(f"    Ожидаемый перепростой: {expected}, получено: {overstay_col}")
+    assert overstay_col == expected, f"Перепростой не совпадает: {overstay_col} != {expected}"
+    # Проверяем, что сумма = перепростой * ставка 1000
+    amount_col = row['Сумма, руб'].values[0]
+    if expected > 0:
+        expected_amount = expected * 1000
+        assert amount_col == expected_amount, f"Сумма {amount_col} не равна {expected_amount}"
+    print("    ✓ Расчёт перепростоя и суммы корректен")
     print("🏁 Тест завершён успешно\n")

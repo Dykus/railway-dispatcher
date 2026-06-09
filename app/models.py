@@ -93,6 +93,7 @@ def init_db():
                      key TEXT NOT NULL, value TEXT, station_id INTEGER DEFAULT 0,
                      PRIMARY KEY (key, station_id))''')
     
+    # Проверяем структуру таблицы app_settings и исправляем при необходимости
     c.execute("PRAGMA table_info(app_settings)")
     cols = [col[1] for col in c.fetchall()]
     has_station_id = 'station_id' in cols
@@ -105,11 +106,22 @@ def init_db():
 
     if not has_station_id or not correct_pk:
         print("[МИГРАЦИЯ] Исправление таблицы app_settings...")
-        c.execute("SELECT key, value, COALESCE(station_id, 0) FROM app_settings")
+        if has_station_id:
+            c.execute("SELECT key, value, COALESCE(station_id, 0) FROM app_settings")
+        else:
+            c.execute("SELECT key, value FROM app_settings")
         old_data = c.fetchall()
         c.execute("DROP TABLE IF EXISTS app_settings")
-        c.execute('''CREATE TABLE app_settings (key TEXT NOT NULL, value TEXT, station_id INTEGER DEFAULT 0, PRIMARY KEY (key, station_id))''')
-        for key, value, sid in old_data:
+        c.execute('''CREATE TABLE app_settings (
+                        key TEXT NOT NULL, value TEXT, station_id INTEGER DEFAULT 0,
+                        PRIMARY KEY (key, station_id)
+                    )''')
+        for row in old_data:
+            if has_station_id:
+                key, value, sid = row
+            else:
+                key, value = row
+                sid = 0
             c.execute("INSERT OR IGNORE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)", (key, value, sid))
         conn.commit()
         print("[МИГРАЦИЯ] Таблица app_settings исправлена.")
@@ -950,3 +962,32 @@ def move_wagon_to_station(visit_id, target_station_id, target_track_id):
         conn.rollback()
         conn.close()
         return False, f"Ошибка: {str(e)}"
+
+# ==================== РАСЧЁТ ПЕРЕПРОСТОЯ ДЛЯ АКТИВНЫХ ВАГОНОВ ====================
+def calculate_current_overstay(visit_id):
+    """Расчёт перепростоя для активного вагона на текущую дату"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT arrival_time, departure_time, station_id FROM wagon_visits WHERE id = ? AND is_archived = 0", (visit_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return 0
+    arrival_str, global_deadline_str, station_id = row
+    if not arrival_str:
+        conn.close()
+        return 0
+    try:
+        arrival_dt = datetime.strptime(arrival_str[:10], '%Y-%m-%d')
+        today = datetime.now().date()
+        calendar_days = (today - arrival_dt.date()).days + 1
+        allowed_days = 0
+        if global_deadline_str:
+            global_dt = datetime.strptime(global_deadline_str[:10], '%Y-%m-%d')
+            allowed_days = (global_dt - arrival_dt).days
+        overstay = calendar_days - allowed_days
+        conn.close()
+        return overstay if overstay > 0 else 0
+    except:
+        conn.close()
+        return 0

@@ -10,9 +10,10 @@ import pandas as pd
 from datetime import datetime
 import sys
 import os
+from openpyxl.styles import Font, Alignment
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from app.models import get_conn, calculate_overstay
+from app.models import get_conn, calculate_overstay, calculate_current_overstay, get_setting
 
 export_bp = Blueprint('export', __name__)
 
@@ -187,7 +188,7 @@ def export_archive_excel():
         vid = row['visit_id']
         over, amt = calculate_overstay(vid)
         overstays.append(over if over > 0 else '')
-        amounts.append(f"{amt:.2f}" if amt > 0 else '')
+        amounts.append(amt if amt > 0 else None)
     df_summary['Перепростой, сут'] = overstays
     df_summary['Сумма, руб'] = amounts
     df_summary.drop(columns=['visit_id'], inplace=True, errors='ignore')
@@ -271,17 +272,121 @@ def export_wagon_archive(wagon_number):
 
     overstay, amount = calculate_overstay(visit_id)
 
-    extra_rows = pd.DataFrame([
-        {'Тип действия': '', 'Откуда': '', 'Куда': '', 'Примечание': 'Перепростой, сут:' if overstay > 0 else '', 'Время': str(overstay) if overstay > 0 else ''},
-        {'Тип действия': '', 'Откуда': '', 'Куда': '', 'Примечание': 'Сумма, руб:' if amount > 0 else '', 'Время': f"{amount:.2f}" if amount > 0 else ''}
-    ])
-    df = pd.concat([df, extra_rows], ignore_index=True)
-
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, sheet_name=f'Архив {wagon_number}', index=False)
+        worksheet = writer.sheets[f'Архив {wagon_number}']
+        
+        # Определяем последнюю строку с данными (заголовок в строке 1)
+        last_data_row = len(df) + 1
+        
+        # Пустая строка для отступа
+        empty_row = last_data_row + 1
+        worksheet.cell(row=empty_row, column=1, value='')
+        
+        # Строка с перепростоем в колонках F и G (6 и 7)
+        row_overstay = empty_row + 1
+        cell_label = worksheet.cell(row=row_overstay, column=6, value='Перепростой, сут:')
+        cell_value = worksheet.cell(row=row_overstay, column=7, value=str(overstay) if overstay > 0 else '')
+        
+        # Строка с суммой
+        row_sum = row_overstay + 1
+        cell_label2 = worksheet.cell(row=row_sum, column=6, value='Сумма, руб:')
+        cell_value2 = worksheet.cell(row=row_sum, column=7, value=f"{amount:.2f}" if amount > 0 else '')
+        
+        # Жирный шрифт для этих ячеек
+        bold_font = Font(bold=True)
+        for cell in [cell_label, cell_value, cell_label2, cell_value2]:
+            cell.font = bold_font
+        
         apply_excel_styling(writer, f'Архив {wagon_number}', has_notes=True)
-
+    
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                      as_attachment=True, download_name=f"Archive_{wagon_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+
+
+@export_bp.route('/export_active_wagons_excel')
+def export_active_wagons_excel():
+    station_id = g.get('station_id', 1)
+    conn = get_conn()
+    
+    # Получаем все активные вагоны с их визитами
+    df = pd.read_sql_query("""
+        SELECT 
+            wv.id as visit_id,
+            wv.wagon_number as "Номер вагона", 
+            wv.owner as "Транспортная компания", 
+            wv.organization as "Организация", 
+            wv.arrival_time as "Время прибытия", 
+            wv.departure_time as "Глобальный срок" 
+        FROM wagon_visits wv 
+        WHERE wv.status != 'departed' AND wv.is_archived = 0 AND wv.station_id = ?
+        ORDER BY wv.wagon_number
+    """, conn, params=(station_id,))
+    conn.close()
+    
+    if df.empty:
+        flash("Нет активных вагонов для экспорта", 'error')
+        return redirect(url_for('history.history_page', station_id=station_id))
+    
+    # Рассчитываем перепростой на текущую дату для каждого вагона
+    overstays = []
+    amounts = []
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    
+    for _, row in df.iterrows():
+        visit_id = row['visit_id']
+        overstay = calculate_current_overstay(visit_id)
+        overstays.append(overstay if overstay > 0 else '')
+        
+        if overstay > 0:
+            progressive = get_setting('overstay_progressive', '0', station_id) == '1'
+            if progressive:
+                range1_limit = int(get_setting('overstay_range1_limit', '4', station_id))
+                range1_rate = float(get_setting('overstay_range1_rate', '2000', station_id))
+                range2_limit = int(get_setting('overstay_range2_limit', '7', station_id))
+                range2_rate = float(get_setting('overstay_range2_rate', '2400', station_id))
+                range3_rate = float(get_setting('overstay_range3_rate', '3000', station_id))
+                
+                amount = 0.0
+                days1 = min(overstay, range1_limit)
+                amount += days1 * range1_rate
+                remaining = overstay - days1
+                if remaining > 0:
+                    days2 = min(remaining, range2_limit - range1_limit)
+                    amount += days2 * range2_rate
+                    remaining -= days2
+                    if remaining > 0:
+                        amount += remaining * range3_rate
+            else:
+                fixed_rate = float(get_setting('overstay_fixed_rate', '2000', station_id))
+                amount = overstay * fixed_rate
+            amounts.append(amount)
+        else:
+            amounts.append('')
+    
+    df['Перепростой на текущую дату, сут'] = overstays
+    df['Сумма, руб'] = amounts
+    df.drop(columns=['visit_id'], inplace=True)
+    
+    try:
+        df['Время прибытия'] = pd.to_datetime(df['Время прибытия']).dt.strftime('%d-%m-%Y %H:%M:%S')
+        df['Глобальный срок'] = pd.to_datetime(df['Глобальный срок']).dt.strftime('%d-%m-%Y %H:%M:%S')
+    except:
+        pass
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Активные вагоны', index=False)
+        apply_excel_styling(writer, 'Активные вагоны')
+        
+        worksheet = writer.sheets['Активные вагоны']
+        cell = worksheet.cell(row=1, column=len(df.columns)+2)
+        cell.value = f"Перепростой рассчитан на дату: {today_str}"
+        cell.font = Font(italic=True, size=10)
+        cell.alignment = Alignment(horizontal='left')
+    
+    output.seek(0)
+    return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                     as_attachment=True, download_name=f"ActiveWagons_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
