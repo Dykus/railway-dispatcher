@@ -600,7 +600,7 @@ tr:nth-child(even) {
     cursor: pointer;
 }
 
-/* ===== ТЁМНАЯ ТЕМА (CSS-ПЕРЕМЕННЫЕ) ===== */
+/* ===== ТЁМНАЯ ТЕМА ===== */
 :root {
     --bg-body: #f0f2f5;
     --bg-container: white;
@@ -694,60 +694,281 @@ details, .track-wrapper, .controls {
     background: var(--summary-bg);
 }
 
-/* Дополнительные стили для тёмной темы */
+/* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ (ПЕРЕКРАШИВАЕМ ВСЁ, ЧТО МОЖЕТ БЫТЬ СВЕТЛЫМ) ===== */
+html.dark .controls,
+html.dark .control-box,
+html.dark .time-group,
+html.dark .date-buttons,
+html.dark .date-buttons button,
+html.dark .control-box:first-child,
+html.dark .control-box:last-child {
+    background: #0f3460 !important;
+    border-color: #2c3e50 !important;
+    color: #e0e0e0 !important;
+}
 html.dark .controls {
-    background: #0f3460;
+    background: #0f3460 !important;
 }
 html.dark .control-box:first-child {
-    border-right-color: #2c3e50;
+    border-right-color: #2c3e50 !important;
 }
-html.dark input, html.dark select, html.dark textarea {
-    background: #1a1a2e;
-    color: #e0e0e0;
-    border-color: #2c3e50;
+html.dark input,
+html.dark select,
+html.dark textarea,
+html.dark .time-group input,
+html.dark .date-time-group input {
+    background: #1a1a2e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
 }
 html.dark .date-buttons button {
-    background: #0f3460;
-    color: white;
+    background: #1a1a2e !important;
+    color: white !important;
+    border-color: #2c3e50 !important;
+}
+html.dark .date-buttons button:hover {
+    background: #1f618d !important;
 }
 html.dark .legend {
-    background: #0f3460;
-    color: #e0e0e0;
+    background: #0f3460 !important;
+    color: #e0e0e0 !important;
+}
+html.dark .legend-color {
+    border: 1px solid #2c3e50 !important;
 }
 html.dark .track-wrapper {
-    background: #16213e;
-    border-color: #2c3e50;
+    background: #16213e !important;
+    border-color: #2c3e50 !important;
 }
 html.dark .alert-success {
-    background: #1e8449;
-    color: #d4edda;
+    background: #1e8449 !important;
+    color: #d4edda !important;
+    border-left-color: #27ae60 !important;
 }
 html.dark .alert-error {
-    background: #c0392b;
-    color: #f8d7da;
+    background: #c0392b !important;
+    color: #f8d7da !important;
+    border-left-color: #e74c3c !important;
+}
+html.dark .refresh-btn {
+    background: #0f3460 !important;
+    color: white !important;
+}
+html.dark .refresh-btn:hover {
+    background: #1f618d !important;
+}
+html.dark #editModal {
+    background: rgba(0,0,0,0.7) !important;
 }
 html.dark #editModal > div {
-    background: #16213e;
-    color: #e0e0e0;
+    background: #16213e !important;
+    color: #e0e0e0 !important;
+}
+html.dark #editModal input,
+html.dark #editModal textarea,
+html.dark #editModal select {
+    background: #1a1a2e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
+}
+html.dark .tooltip-row {
+    border-bottom-color: #2c3e50 !important;
+}
+html.dark .timer-block {
+    border-top-color: #2c3e50 !important;
+}
+html.dark .close-tooltip {
+    color: #bdc3c7 !important;
+}
+html.dark .close-tooltip:hover {
+    color: white !important;
+}
+html.dark .btn-remove-large {
+    background: #c0392b !important;
+}
+html.dark .btn-remove-large:hover {
+    background: #e74c3c !important;
+}
+html.dark .settings-section {
+    background: #0f3460 !important;
+    border: 1px solid #2c3e50 !important;
+}
+html.dark .form-row input,
+html.dark .form-row select {
+    background: #1a1a2e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
+}
+html.dark .btn-save {
+    background: #1e8449 !important;
+}
+html.dark .btn-save:hover {
+    background: #27ae60 !important;
+}
+html.dark .ip-form {
+    background: #0f3460 !important;
+}
+html.dark .ip-form input,
+html.dark .ip-form select {
+    background: #1a1a2e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
+}
+html.dark .ip-table {
+    background: #16213e !important;
+}
+html.dark .ip-table th {
+    background: #0f3460 !important;
+    color: #ecf0f1 !important;
+}
+html.dark .ip-table td {
+    border-color: #2c3e50 !important;
+    color: #e0e0e0 !important;
+}
+html.dark .ip-table tr:nth-child(even) {
+    background: #1a1a2e !important;
+}
+html.dark .delete-btn {
+    background: #c0392b !important;
+}
+html.dark .delete-btn:hover {
+    background: #e74c3c !important;
+}
+html.dark .search-box input {
+    background: #1a1a2e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
+}
+html.dark .search-box button {
+    background: #0f3460 !important;
+}
+html.dark .search-box button:hover {
+    background: #1f618d !important;
 }
 html.dark .history-table td,
 html.dark .history-table th {
-    border-color: #2c3e50;
+    border-color: #2c3e50 !important;
 }
 html.dark .history-table tr:nth-child(even) {
-    background: #1a1a2e;
+    background: #1a1a2e !important;
 }
 html.dark .history-table tr:hover {
-    background: #0f3460;
+    background: #0f3460 !important;
 }
-html.dark .excel-wagon-btn {
-    background-color: #1e8449 !important;
+html.dark .edit-history-btn {
+    color: #3498db !important;
 }
-html.dark .excel-wagon-btn:hover {
-    background-color: #27ae60 !important;
+html.dark .edit-history-btn:hover {
+    color: #e67e22 !important;
 }
-
-/* Стили для таблицы цветов в справке */
+html.dark div[style*="background:#e8f6f3"],
+html.dark div[style*="background:#fef9e7"] {
+    background: #0f3460 !important;
+}
+html.dark div[style*="background:#e8f6f3"] *,
+html.dark div[style*="background:#fef9e7"] * {
+    color: #e0e0e0 !important;
+}
+html.dark div[style*="background:#e8f6f3"] label,
+html.dark div[style*="background:#fef9e7"] label {
+    color: #bdc3c7 !important;
+}
+html.dark pre {
+    background: #1a1a2e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
+}
+html.dark .note {
+    background: #0f3460 !important;
+    color: #e0e0e0 !important;
+    border-left-color: #f39c12 !important;
+}
+html.dark .address {
+    background: #0f3460 !important;
+    color: #e0e0e0 !important;
+}
+html.dark .color-box {
+    border: 1px solid #2c3e50 !important;
+}
+html.dark table:not(.ip-table):not(.history-table) {
+    background: #16213e !important;
+}
+html.dark table:not(.ip-table):not(.history-table) th {
+    background: #0f3460 !important;
+    color: #ecf0f1 !important;
+}
+html.dark table:not(.ip-table):not(.history-table) td {
+    border-color: #2c3e50 !important;
+    color: #e0e0e0 !important;
+}
+html.dark table:not(.ip-table):not(.history-table) tr:nth-child(even) {
+    background: #1a1a2e !important;
+}
+html.dark details,
+html.dark .details-content,
+html.dark .history-table,
+html.dark .history-table td,
+html.dark .history-table th,
+html.dark table,
+html.dark td,
+html.dark th,
+html.dark tr,
+html.dark tbody,
+html.dark thead {
+    background: #16213e !important;
+    color: #e0e0e0 !important;
+    border-color: #2c3e50 !important;
+}
+html.dark .history-table th {
+    background: #0f3460 !important;
+    color: #ecf0f1 !important;
+}
+html.dark .history-table tr:nth-child(even),
+html.dark table tr:nth-child(even) {
+    background: #1a1a2e !important;
+}
+html.dark .history-table tr:hover,
+html.dark table tr:hover {
+    background: #0f3460 !important;
+}
+html.dark summary,
+html.dark summary * {
+    background: #0f3460 !important;
+    color: #e0e0e0 !important;
+}
+html.dark .wagon-num {
+    color: #3498db !important;
+}
+html.dark .status-added,
+html.dark .status-moved,
+html.dark .status-departed,
+html.dark .status-edit {
+    background: transparent !important;
+    color: inherit !important;
+}
+html.dark .container {
+    background: #16213e !important;
+}
+html.dark .container h1,
+html.dark .container h2,
+html.dark .container h3,
+html.dark .container p,
+html.dark .container li,
+html.dark .container td,
+html.dark .container th,
+html.dark .container .version {
+    color: #e0e0e0 !important;
+}
+html.dark .container .note,
+html.dark .container .address {
+    background: #0f3460 !important;
+    color: #e0e0e0 !important;
+    border-left-color: #f39c12 !important;
+}
+html.dark .container .nav-link {
+    background: #0f3460 !important;
+    color: white !important;
+}
 .help-color-table {
     width: 100%;
     border-collapse: collapse;

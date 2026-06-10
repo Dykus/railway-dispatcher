@@ -5,6 +5,7 @@
     <title>Архив</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
+        /* Статус */
         .wagon-status {
             display: inline-block !important;
             padding: 2px 12px !important;
@@ -13,10 +14,75 @@
             color: white !important;
             background-color: #e74c3c !important;
         }
+        /* Кнопка Excel */
         .excel-wagon-btn {
             display: inline-block !important;
             width: auto !important;
             white-space: nowrap !important;
+            background-color: #217346 !important;
+            color: white !important;
+            padding: 4px 10px !important;
+            border-radius: 4px !important;
+            text-decoration: none !important;
+            font-weight: bold !important;
+            justify-self: end !important;
+        }
+        /* Сетка summary для архива */
+        .archive-summary {
+            display: grid;
+            grid-template-columns: 150px 120px 1fr 100px;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            cursor: pointer;
+            background: #ecf0f1;
+            font-weight: bold;
+            list-style: none;
+        }
+        .archive-summary::-webkit-details-marker {
+            display: none;
+        }
+        .archive-summary::marker {
+            display: none;
+        }
+        /* Контейнер внутри третьей колонки — распределяем пространство */
+        .info-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+        /* Левая часть: владелец и организация */
+        .left-info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        /* Правая часть: дата и события */
+        .right-info {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .info-label {
+            font-weight: normal;
+            color: #555;
+            margin-right: 4px;
+        }
+        /* Тёмная тема */
+        html.dark .archive-summary {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+        html.dark .info-label {
+            color: #bdc3c7;
+        }
+        .wagon-num {
+            font-size: 1.2em;
+            color: #2980b9;
+        }
+        html.dark .wagon-num {
+            color: #3498db;
         }
     </style>
     <script>
@@ -46,6 +112,7 @@
                     {% endif %}
                 {% endfor %}
             </div>
+            <!-- Часы -->
             <div style="display: flex; align-items: center; gap: 15px;">
                 <div id="moscow-clock" style="font-family: monospace; font-size: 16px; font-weight: bold; background: #2c3e50; color: white; padding: 6px 12px; border-radius: 8px;">--:--:-- ---</div>
                 <div style="font-size: 11px; color: #7f8c8d;">Московское время</div>
@@ -68,25 +135,34 @@
     </div>
     <div id="noResultsMsg" class="no-results">❌ Ничего не найдено</div>
 
-    <!-- Архивные группы (переделанный summary) -->
+    <!-- Архивные группы -->
     <div id="archiveContainer">
     {% if not archive_groups %}
         <p>Архив пуст.</p>
     {% else %}
         {% for item in archive_groups %}
             <details class="wagon-details" data-wagon-num="{{ item.num|lower }}">
-                <summary>
+                <summary class="archive-summary">
                     <span class="wagon-num">{{ item.num }}</span>
                     <span class="wagon-status">Убыл</span>
-                    <span>{{ item.owner }}</span>
-                    <span>{{ item.org }}</span>
-                    <span>📅 {{ item.dep[:16] }}</span>
-                    <span>Событий: {{ item.count }}</span>
-                    <a href="/export_wagon_archive/{{ item.num }}?station_id={{ current_station_id }}" class="excel-wagon-btn" style="background:#217346;color:white;padding:4px 10px;border-radius:4px;text-decoration:none;font-weight:bold;display:inline-block;width:auto;white-space:nowrap;">📊 Excel</a>
+                    <div class="info-container">
+                        <div class="left-info">
+                            <span><span class="info-label">🏢</span> {{ item.owner }}</span>
+                            <span><span class="info-label">📋</span> {{ item.org }}</span>
+                        </div>
+                        <div class="right-info">
+                            <span><span class="info-label">📅</span> {{ item.dep[:16] }}</span>
+                            <span><span class="info-label">🔢</span> Событий: {{ item.count }}</span>
+                        </div>
+                    </div>
+                    <a href="/export_wagon_archive/{{ item.num }}?station_id={{ current_station_id }}" 
+                       class="excel-wagon-btn">📊 Excel</a>
                 </summary>
                 <div class="details-content">
                     <table class="history-table">
-                        <thead><tr><th>Действие</th><th>Откуда</th><th>Куда</th><th>Примечание</th><th>Время</th></tr></thead>
+                        <thead>
+                            <tr><th>Действие</th><th>Откуда</th><th>Куда</th><th>Примечание</th><th>Время</th></tr>
+                        </thead>
                         <tbody>
                             {% for ev in item.events %}
                             <tr>

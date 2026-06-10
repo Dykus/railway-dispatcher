@@ -96,11 +96,14 @@ function formatTimeInput(input) {
     }
 }
 
+// ========== ИСПРАВЛЕННЫЕ ФУНКЦИИ: теперь вставляют МОСКОВСКОЕ время ==========
 function setToday(formType) {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
+    // Получаем текущее UTC и прибавляем 3 часа -> московское время
+    const now = new Date();
+    const mskTime = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+    const year = mskTime.getUTCFullYear();
+    const month = String(mskTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(mskTime.getUTCDate()).padStart(2, '0');
     const dateValue = `${year}-${month}-${day}`;
     if (formType === 'add') {
         document.getElementById('add_start_date').value = dateValue;
@@ -110,9 +113,11 @@ function setToday(formType) {
 }
 
 function setNow(formType) {
+    // Получаем текущее UTC и прибавляем 3 часа -> московское время
     const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const mskTime = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+    const hours = String(mskTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(mskTime.getUTCMinutes()).padStart(2, '0');
     const timeValue = `${hours}:${minutes}`;
     if (formType === 'add') {
         document.getElementById('add_start_time').value = timeValue;
@@ -120,6 +125,7 @@ function setNow(formType) {
         document.getElementById('move_start_time').value = timeValue;
     }
 }
+// =====================================================================
 
 function clearDateTime(formType) {
     if (formType === 'add') {
@@ -717,23 +723,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// ===== ЧАСЫ С МОСКОВСКИМ ВРЕМЕНЕМ (вычитаем 4 часа из местного) =====
+// ===== ЧАСЫ С МОСКОВСКИМ ВРЕМЕНЕМ =====
 function updateMoscowClock() {
     const clockElement = document.getElementById('moscow-clock');
     if (!clockElement) return;
     const now = new Date();
-    // вычитаем 4 часа (в миллисекундах) – Новокузнецк (UTC+7) -> Москва (UTC+3)
-    const msk = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-    const hours = String(msk.getHours()).padStart(2, '0');
-    const minutes = String(msk.getMinutes()).padStart(2, '0');
-    const seconds = String(msk.getSeconds()).padStart(2, '0');
-    const day = String(msk.getDate()).padStart(2, '0');
-    const month = String(msk.getMonth() + 1).padStart(2, '0');
-    const year = msk.getFullYear();
+    const mskTime = new Date(now.getTime() + 3 * 60 * 60 * 1000); // UTC+3
+    const hours = String(mskTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(mskTime.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(mskTime.getUTCSeconds()).padStart(2, '0');
+    const day = String(mskTime.getUTCDate()).padStart(2, '0');
+    const month = String(mskTime.getUTCMonth() + 1).padStart(2, '0');
+    const year = mskTime.getUTCFullYear();
     clockElement.textContent = `${hours}:${minutes}:${seconds} ${day}.${month}.${year}`;
 }
 
-// Запускаем часы, если элемент существует (после загрузки DOM)
 document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('moscow-clock')) {
         updateMoscowClock();
