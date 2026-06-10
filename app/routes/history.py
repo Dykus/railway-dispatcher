@@ -7,9 +7,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, g
 import sys
 import os
+from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from app.models import get_grouped_history, get_grouped_archive_history, get_conn
+from app.models import get_grouped_history, get_grouped_archive_history, get_conn, calculate_overstay, calculate_current_overstay, get_setting
 from config import APP_VERSION
 
 history_bp = Blueprint('history', __name__)
@@ -18,8 +19,51 @@ history_bp = Blueprint('history', __name__)
 @history_bp.route('/history')
 def history_page():
     station_id = g.get('station_id', 1)
+    
+    history_groups = get_grouped_history(station_id)
+    
+    conn = get_conn()
+    c = conn.cursor()
+    for group in history_groups:
+        wagon_num = group['num']
+        c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND is_archived = 0 AND station_id = ?", (wagon_num, station_id))
+        row = c.fetchone()
+        if row:
+            visit_id = row[0]
+            overstay = calculate_current_overstay(visit_id)
+            if overstay > 0:
+                progressive = get_setting('overstay_progressive', '0', station_id) == '1'
+                if progressive:
+                    range1_limit = int(get_setting('overstay_range1_limit', '4', station_id))
+                    range1_rate = float(get_setting('overstay_range1_rate', '2000', station_id))
+                    range2_limit = int(get_setting('overstay_range2_limit', '7', station_id))
+                    range2_rate = float(get_setting('overstay_range2_rate', '2400', station_id))
+                    range3_rate = float(get_setting('overstay_range3_rate', '3000', station_id))
+                    amount = 0.0
+                    days1 = min(overstay, range1_limit)
+                    amount += days1 * range1_rate
+                    remaining = overstay - days1
+                    if remaining > 0:
+                        days2 = min(remaining, range2_limit - range1_limit)
+                        amount += days2 * range2_rate
+                        remaining -= days2
+                        if remaining > 0:
+                            amount += remaining * range3_rate
+                else:
+                    fixed_rate = float(get_setting('overstay_fixed_rate', '2000', station_id))
+                    amount = overstay * fixed_rate
+                group['current_overstay'] = overstay
+                group['current_amount'] = amount
+            else:
+                group['current_overstay'] = 0
+                group['current_amount'] = 0
+        else:
+            group['current_overstay'] = 0
+            group['current_amount'] = 0
+    conn.close()
+    
     return render_template('history.html',
-                           history_groups=get_grouped_history(station_id),
+                           history_groups=history_groups,
                            title="История перемещений",
                            session_role=request.user_role,
                            version=APP_VERSION)
@@ -30,8 +74,9 @@ def archive_page():
     station_id = g.get('station_id', 1)
     conn = get_conn()
     c = conn.cursor()
+    
     c.execute("""
-        SELECT wv.wagon_number, wv.owner, wv.organization, wv.departure_time, wv.id as visit_id
+        SELECT wv.wagon_number, wv.owner, wv.organization, wv.id as visit_id
         FROM wagon_visits wv
         JOIN (
             SELECT wagon_number, MAX(id) as max_id
@@ -42,19 +87,44 @@ def archive_page():
         ORDER BY wv.wagon_number ASC
     """, (station_id,))
     meta_rows = c.fetchall()
-    meta_dict = {row[0]: {"owner": row[1] or "-", "org": row[2] or "-", "dep": row[3] or "-", "visit_id": row[4]} for row in meta_rows}
+    
+    meta_dict = {}
+    for row in meta_rows:
+        num, owner, org, visit_id = row
+        c.execute("SELECT MAX(timestamp) FROM archived_history WHERE visit_id = ? AND station_id = ?", (visit_id, station_id))
+        dep_row = c.fetchone()
+        departure_date = dep_row[0] if dep_row and dep_row[0] else "-"
+        # ФОРМАТИРУЕМ ДАТУ ПРЯМО ЗДЕСЬ
+        if departure_date != "-":
+            try:
+                dt = datetime.strptime(departure_date[:19], '%Y-%m-%d %H:%M:%S')
+                departure_date = dt.strftime('%d-%m-%Y %H:%M')
+            except:
+                pass
+        
+        overstay, amount = calculate_overstay(visit_id)
+        meta_dict[num] = {
+            "owner": owner or "-",
+            "org": org or "-",
+            "dep": departure_date,
+            "visit_id": visit_id,
+            "overstay": overstay if overstay > 0 else 0,
+            "amount": amount if amount > 0 else 0
+        }
 
     history_data = get_grouped_archive_history(station_id)
     full_archive_data = []
     for item in history_data:
         num = item['num']
-        meta = meta_dict.get(num, {"owner": "-", "org": "-", "dep": "-", "visit_id": None})
+        meta = meta_dict.get(num, {"owner": "-", "org": "-", "dep": "-", "visit_id": None, "overstay": 0, "amount": 0})
         full_archive_data.append({
             "num": num,
             "owner": meta['owner'],
             "org": meta['org'],
             "dep": meta['dep'],
             "visit_id": meta['visit_id'],
+            "overstay": meta['overstay'],
+            "amount": meta['amount'],
             "last_status": item['last_status'],
             "last_time": item['last_time'],
             "events": item['events'],

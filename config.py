@@ -36,7 +36,7 @@ BACKUP_HOUR = 3
 BACKUP_KEEP_COUNT = 30
 
 # ==================== ПРОЧИЕ КОНСТАНТЫ ====================
-APP_VERSION = "5.3.0"
+APP_VERSION = "5.3.1"
 RETURN_TRACK_NAMES = ["Пост №2", "Ст. Черкасов Камень"]
 
 SECRET_KEY = 'rail_app_secret_key_change_me'

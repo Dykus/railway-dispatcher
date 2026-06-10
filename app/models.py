@@ -1,8 +1,5 @@
 # app/models.py
 # -*- coding: utf-8 -*-
-"""
-Модели данных и функции работы с базой данных.
-"""
 
 import os
 import glob
@@ -168,8 +165,6 @@ def init_db():
     migrate_to_visits()
     migrate_to_stations()
     ensure_fine_settings_for_all_stations()
-    
-    # ОДНОРАЗОВАЯ МИГРАЦИЯ ВРЕМЕННЫХ ПОЛЕЙ НА МОСКОВСКОЕ ВРЕМЯ
     migrate_timezone_to_msk()
 
 def migrate_to_visits():
@@ -222,22 +217,15 @@ def ensure_fine_settings_for_all_stations():
     conn.commit()
     conn.close()
 
-# ==================== МИГРАЦИЯ ЧАСОВОГО ПОЯСА ====================
 def migrate_timezone_to_msk():
-    """Одноразовая миграция всех временных полей из новокузнецкого времени в московское."""
     conn = get_conn()
     c = conn.cursor()
-    
-    # Проверяем, не выполнялась ли миграция ранее
     c.execute("SELECT value FROM app_settings WHERE key = 'timezone_migrated' AND station_id = 0")
     if c.fetchone():
         print("[МИГРАЦИЯ] Часовой пояс уже переведён на московский, пропускаем.")
         conn.close()
         return
-    
     print("[МИГРАЦИЯ] Начинаем перевод базы данных из новокузнецкого времени в московское...")
-    
-    # Таблицы и поля, которые нужно преобразовать
     tables = {
         "wagon_visits": ["arrival_time", "departure_time", "local_departure_time"],
         "movement_history": ["timestamp"],
@@ -245,7 +233,6 @@ def migrate_timezone_to_msk():
         "action_log": ["timestamp"],
         "wagons": ["arrival_time", "departure_time", "local_departure_time"]
     }
-    
     total_updated = 0
     for table, columns in tables.items():
         for col in columns:
@@ -261,15 +248,13 @@ def migrate_timezone_to_msk():
             except sqlite3.OperationalError as e:
                 print(f"[МИГРАЦИЯ] Ошибка в таблице {table}.{col}: {e}")
                 continue
-    
-    # Устанавливаем флаг, что миграция выполнена
     c.execute("INSERT OR REPLACE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
               ('timezone_migrated', '1', 0))
     conn.commit()
     conn.close()
     print(f"[МИГРАЦИЯ] Завершено. Обновлено записей: {total_updated}")
 
-# ==================== ОСТАЛЬНЫЕ ФУНКЦИИ (С ЗАМЕНОЙ datetime.now -> get_moscow_now) ====================
+# ==================== ОСТАЛЬНЫЕ ФУНКЦИИ ====================
 def get_setting(key, default=None, station_id=None):
     conn = get_conn()
     c = conn.cursor()
@@ -813,6 +798,7 @@ def get_dashboard_data(station_id=1):
     move_list = [{"id": w[0], "text": f"{w[1]} [{w[4] or ''}] ({w[5] or ''}) | {w[11]}", "current_note": w[3] or ""} for w in all_wagons_raw]
     return tracks_data, move_list
 
+# ==================== ИСПРАВЛЕННАЯ get_grouped_history (без HTML) ====================
 def get_grouped_history(station_id=1):
     conn = get_conn()
     c = conn.cursor()
@@ -824,11 +810,16 @@ def get_grouped_history(station_id=1):
     grouped = defaultdict(list)
     for row in rows:
         hist_id, w_num, action, from_t, to_t, note, ts_str, owner, org, cargo_type = row
-        if action == 'added': action_label = "<span style='color:#27ae60'>Добавлен</span>"
-        elif action == 'moved': action_label = "<span style='color:#f39c12'>Перемещен</span>"
-        elif action == 'edit': action_label = "<span style='color:#8e44ad'>Изменён</span>"
-        else: action_label = "<span style='color:#e74c3c'>Убыл</span>"
-        grouped[w_num].append({"id": hist_id, "action": action_label, "from": from_t or "-", "to": to_t or "-", 
+        # простой текст, без HTML
+        if action == 'added':
+            action_label = "Добавлен"
+        elif action == 'moved':
+            action_label = "Перемещен"
+        elif action == 'edit':
+            action_label = "Изменён"
+        else:
+            action_label = "Убыл"
+        grouped[w_num].append({"id": hist_id, "action": action_label, "from": from_t or "-", "to": to_t or "-",
                                "owner": owner or "-", "org": org or "-", "cargo": cargo_type or "-", "note": note or "-", "time": ts_str})
     def sort_key(k):
         try: return (0, int(k))
@@ -901,7 +892,7 @@ def calculate_overstay(visit_id):
     if global_deadline_str:
         try:
             global_dt = datetime.strptime(global_deadline_str[:10], '%Y-%m-%d')
-            allowed_days = (global_dt - arrival_dt).days   # без +1
+            allowed_days = (global_dt - arrival_dt).days
         except:
             pass
     if allowed_days < 0:
@@ -937,16 +928,10 @@ def calculate_overstay(visit_id):
     conn.close()
     return overstay, amount
 
-# ==================== ПЕРЕНОС ВАГОНА НА ДРУГУЮ ПЛОЩАДКУ ====================
 def move_wagon_to_station(visit_id, target_station_id, target_track_id):
-    """
-    Переносит активный вагон (визит) на другую площадку с сохранением истории.
-    Возвращает (success, message).
-    """
     conn = get_conn()
     c = conn.cursor()
     try:
-        # Получаем информацию о вагоне
         c.execute("SELECT wagon_number, station_id, track_id, start_pos FROM wagon_visits WHERE id = ? AND is_archived = 0", (visit_id,))
         row = c.fetchone()
         if not row:
@@ -956,24 +941,20 @@ def move_wagon_to_station(visit_id, target_station_id, target_track_id):
         if old_station_id == target_station_id:
             return False, "Вагон уже находится на этой площадке"
 
-        # Проверяем, нет ли активного вагона с таким же номером на целевой площадке
         c.execute("SELECT id FROM wagon_visits WHERE wagon_number = ? AND station_id = ? AND is_archived = 0",
                   (wagon_number, target_station_id))
         if c.fetchone():
             return False, "На целевой площадке уже есть активный вагон с таким номером"
 
-        # Проверяем, что целевой путь существует и принадлежит целевой площадке
         c.execute("SELECT name FROM tracks WHERE id = ? AND station_id = ?", (target_track_id, target_station_id))
         track_row = c.fetchone()
         if not track_row:
             return False, "Целевой путь не найден на указанной площадке"
         target_track_name = track_row[0]
 
-        # Обновляем station_id и track_id у вагона (start_pos пока временно)
         c.execute("UPDATE wagon_visits SET station_id = ?, track_id = ? WHERE id = ?",
                   (target_station_id, target_track_id, visit_id))
 
-        # --- Уплотнение целевого пути (пересчёт позиций всех вагонов) ---
         spacing = float(get_setting('wagon_spacing', '50.0', target_station_id))
         c.execute("SELECT id, length FROM wagon_visits WHERE track_id = ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos ASC",
                   (target_track_id,))
@@ -983,13 +964,10 @@ def move_wagon_to_station(visit_id, target_station_id, target_track_id):
             w_len = float(wag_len) if wag_len is not None else 10.0
             c.execute("UPDATE wagon_visits SET start_pos = ? WHERE id = ?", (current_pos, wag_id))
             current_pos += w_len + spacing
-        # -------------------------------------------------------------
 
-        # Обновляем station_id в movement_history для всех записей этого вагона на старой площадке
         c.execute("UPDATE movement_history SET station_id = ? WHERE wagon_number = ? AND station_id = ?",
                   (target_station_id, wagon_number, old_station_id))
 
-        # Уплотняем старый путь (убираем "дыру")
         spacing_old = float(get_setting('wagon_spacing', '50.0', old_station_id))
         c.execute("SELECT id, length FROM wagon_visits WHERE track_id = ? AND id != ? AND status != 'departed' AND is_archived = 0 ORDER BY start_pos ASC",
                   (old_track_id, visit_id))
@@ -1003,21 +981,16 @@ def move_wagon_to_station(visit_id, target_station_id, target_track_id):
         conn.commit()
         conn.close()
 
-        # Логируем действие (отдельное соединение)
         log_action('move_to_station', wagon_number=wagon_number,
                    details=f"Перенос с площадки {old_station_id} на {target_station_id}, путь {target_track_name}",
                    station_id=target_station_id)
-
         return True, f"Вагон {wagon_number} перенесён на площадку {target_station_id} на путь {target_track_name}"
-
     except Exception as e:
         conn.rollback()
         conn.close()
         return False, f"Ошибка: {str(e)}"
 
-# ==================== РАСЧЁТ ПЕРЕПРОСТОЯ ДЛЯ АКТИВНЫХ ВАГОНОВ ====================
 def calculate_current_overstay(visit_id):
-    """Расчёт перепростоя для активного вагона на текущую дату"""
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT arrival_time, departure_time, station_id FROM wagon_visits WHERE id = ? AND is_archived = 0", (visit_id,))

@@ -5,8 +5,11 @@
     <title>{{ title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        /* Стили для статусов – гарантированно работают */
-        .status-added, .status-moved, .status-departed, .status-edit {
+        /* Принудительные стили для статусов в светлой теме */
+        .status-added,
+        .status-moved,
+        .status-departed,
+        .status-edit {
             display: inline-block !important;
             padding: 2px 12px !important;
             border-radius: 12px !important;
@@ -19,16 +22,45 @@
         .status-departed { background-color: #e74c3c !important; }
         .status-edit { background-color: #8e44ad !important; }
 
-        .excel-wagon-btn {
-            background-color: #217346 !important;
-            color: white !important;
-            padding: 4px 10px !important;
-            border-radius: 4px !important;
-            text-decoration: none !important;
-            font-weight: bold !important;
+        .history-summary {
+            display: grid;
+            grid-template-columns: 150px 120px 1fr 140px 100px;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            cursor: pointer;
+            background: #ecf0f1;
+            font-weight: bold;
+            list-style: none;
         }
-        html.dark .excel-wagon-btn {
-            background-color: #1e8449 !important;
+        .history-summary::-webkit-details-marker {
+            display: none;
+        }
+        .history-summary::marker {
+            display: none;
+        }
+        .overstay-info {
+            text-align: right;
+            white-space: nowrap;
+        }
+        .info-label {
+            font-weight: normal;
+            color: #555;
+            margin-right: 4px;
+        }
+        html.dark .history-summary {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+        html.dark .info-label {
+            color: #bdc3c7;
+        }
+        .wagon-num {
+            font-size: 1.2em;
+            color: #2980b9;
+        }
+        html.dark .wagon-num {
+            color: #3498db;
         }
     </style>
     <script>
@@ -42,7 +74,6 @@
 </head>
 <body>
 <div class="container">
-    <!-- ШАПКА (вкладки и часы) -->
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
         <div style="display: flex; flex-direction: column;">
             <h1 style="margin: 0;">{{ title }}</h1>
@@ -65,7 +96,6 @@
         </div>
     </div>
 
-    <!-- КНОПКИ -->
     <div class="nav-links nav-buttons" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 20px;">
         <a href="/?station_id={{ current_station_id }}" class="nav-link">🏠 На главную</a>
         <a href="/archive?station_id={{ current_station_id }}" class="nav-link nav-link-archive">🗄️ Архив</a>
@@ -74,63 +104,53 @@
         <a href="/help?station_id={{ current_station_id }}" class="nav-link nav-link-help">❓ Помощь</a>
     </div>
 
-    <!-- ПОИСК -->
     <div class="search-box">
         <input type="text" id="searchInput" placeholder="🔍 Поиск по номеру вагона..." autocomplete="off">
         <button id="clearSearch">Очистить</button>
     </div>
     <div id="noResultsMsg" class="no-results">❌ Ничего не найдено</div>
 
-    <!-- ИСТОРИЯ -->
     <div id="historyContainer">
     {% if not history_groups %}
         <p>История пуста.</p>
     {% else %}
         {% for item in history_groups %}
             <details class="wagon-details" data-wagon-num="{{ item.num|lower }}">
-                <summary>
+                <summary class="history-summary">
                     <span class="wagon-num">{{ item.num }}</span>
-                    {% set status_text = item.last_status|striptags %}
-                    {% if 'Добавлен' in status_text %}
-                        <span class="status-added">Добавлен</span>
-                    {% elif 'Перемещен' in status_text %}
-                        <span class="status-moved">Перемещен</span>
-                    {% elif 'Изменён' in status_text %}
-                        <span class="status-edit">Изменён</span>
-                    {% else %}
-                        <span class="status-departed">Убыл</span>
-                    {% endif %}
-                    <span class="wagon-info">📅 {{ item.last_time[:16] }} | Событий: {{ item.count }}</span>
+                    <span class="status-{% if 'Добавлен' in item.last_status %}added{% elif 'Перемещен' in item.last_status %}moved{% elif 'Изменён' in item.last_status %}edit{% else %}departed{% endif %}">{{ item.last_status }}</span>
+                    <span class="wagon-info">📅 {{ item.last_time|format_date_ru }} | Событий: {{ item.count }}</span>
+                    <div class="overstay-info">
+                        {% if item.current_overstay > 0 %}
+                            <span><span class="info-label">⏱️</span> {{ item.current_overstay }} сут</span><br>
+                            <span><span class="info-label">💰</span> {{ "{:,.2f}".format(item.current_amount).replace(',', ' ') }} руб</span>
+                        {% else %}
+                            <span><span class="info-label">✅</span> Без перепростоя</span>
+                        {% endif %}
+                    </div>
                     <a href="/export_wagon_history/{{ item.num }}?station_id={{ current_station_id }}" class="excel-wagon-btn">📊 Excel</a>
                 </summary>
                 <div class="details-content">
                     <table class="history-table">
                         <thead>
-                            <tr>
-                                <th>Действие</th>
-                                <th>Откуда</th>
-                                <th>Куда</th>
-                                <th>ТК</th>
-                                <th>Орг</th>
-                                <th>Примечание</th>
-                                <th>Время</th>
-                            </tr>
+                            <tr><th>Действие</th><th>Откуда</th><th>Куда</th><th>ТК</th><th>Орг</th><th>Примечание</th><th>Время</th></tr>
                         </thead>
                         <tbody>
                             {% for ev in item.events %}
                             <tr>
-                                <td>{{ ev.action|safe }}</td>
+                                <td><span class="status-{% if ev.action == 'Добавлен' %}added{% elif ev.action == 'Перемещен' %}moved{% elif ev.action == 'Изменён' %}edit{% else %}departed{% endif %}">{{ ev.action }}</span></td>
                                 <td>{{ ev.from }}</td>
                                 <td>{{ ev.to }}</td>
                                 <td>{{ ev.owner }}</td>
                                 <td>{{ ev.org }}</td>
                                 <td>{{ ev.note }}</td>
-                                <td>
-                                    {{ ev.time }}
-                                    {% if session_role in ('supervisor', 'admin') and ev.is_last %}
-                                        <button class="edit-history-btn" data-id="{{ ev.id }}" data-time="{{ ev.time }}" title="Редактировать дату последнего события">✏️</button>
-                                    {% elif session_role in ('supervisor', 'admin') and not ev.is_last %}
-                                        <span class="edit-history-locked" title="Редактирование доступно только для последнего события">🔒</span>
+                                <td>{{ ev.time|format_date_ru }}
+                                    {% if session_role in ('supervisor', 'admin') %}
+                                        {% if ev.is_last %}
+                                            <button class="edit-history-btn" data-id="{{ ev.id }}" data-time="{{ ev.time }}" title="Редактировать дату последнего события">✏️</button>
+                                        {% else %}
+                                            <span class="edit-history-locked" title="Редактирование доступно только для последнего события, чтобы не нарушать хронологию">🔒</span>
+                                        {% endif %}
                                     {% endif %}
                                 </td>
                             </tr>

@@ -29,6 +29,20 @@ def create_app():
         create_auto_backup()
     schedule_daily_backup()
 
+    # ---------- ФИЛЬТР ДЛЯ ФОРМАТИРОВАНИЯ ДАТЫ (ДД-ММ-ГГГГ ЧЧ:ММ) ----------
+    @app.template_filter('format_date_ru')
+    def format_date_ru(dt_str):
+        """Преобразует строку 'YYYY-MM-DD HH:MM:SS' в 'ДД-ММ-ГГГГ ЧЧ:ММ'"""
+        if not dt_str or dt_str == '-':
+            return '-'
+        try:
+            dt_str = dt_str.strip()[:19]
+            dt = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
+            return dt.strftime('%d-%m-%Y %H:%M')
+        except:
+            return dt_str
+    # ----------------------------------------------------------------
+
     @app.before_request
     def before_request_check():
         try:
@@ -58,13 +72,12 @@ def create_app():
             if not role:
                 role = 'viewer'
 
-        # Все маршруты, доступные для любого авторизованного пользователя (включая наблюдателя)
         public_endpoints = [
             'main.index', 'history.history_page', 'history.archive_page', 'main.help_page', 'main.about_page',
             'api.api_status', 'api.get_wagon_info', 'api.api_dashboard_data', 'api.get_tracks_by_station', 'static',
             'export.export_excel', 'export.export_history_excel', 'export.export_archive_excel',
             'export.export_wagon_history', 'export.export_wagon_archive', 'export.export_active_wagons_excel',
-            'history.archive_export_filter'  # страница фильтра архива (доступна всем)
+            'history.archive_export_filter'
         ]
         dispatcher_endpoints = ['main.add_wagon', 'main.move_action', 'main.depart_action']
         supervisor_endpoints = ['admin.edit_wagon_route', 'admin.edit_history']

@@ -5,7 +5,6 @@
     <title>Архив</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        /* Статус */
         .wagon-status {
             display: inline-block !important;
             padding: 2px 12px !important;
@@ -14,7 +13,6 @@
             color: white !important;
             background-color: #e74c3c !important;
         }
-        /* Кнопка Excel */
         .excel-wagon-btn {
             display: inline-block !important;
             width: auto !important;
@@ -27,10 +25,9 @@
             font-weight: bold !important;
             justify-self: end !important;
         }
-        /* Сетка summary для архива */
         .archive-summary {
             display: grid;
-            grid-template-columns: 150px 120px 1fr 100px;
+            grid-template-columns: 120px 100px 1fr 140px 100px;
             align-items: center;
             gap: 10px;
             padding: 12px;
@@ -45,31 +42,31 @@
         .archive-summary::marker {
             display: none;
         }
-        /* Контейнер внутри третьей колонки — распределяем пространство */
         .info-container {
             display: flex;
             justify-content: space-between;
             align-items: center;
             width: 100%;
         }
-        /* Левая часть: владелец и организация */
         .left-info {
             display: flex;
             gap: 20px;
             align-items: center;
         }
-        /* Правая часть: дата и события */
         .right-info {
             display: flex;
             gap: 15px;
             align-items: center;
+        }
+        .overstay-info {
+            text-align: right;
+            white-space: nowrap;
         }
         .info-label {
             font-weight: normal;
             color: #555;
             margin-right: 4px;
         }
-        /* Тёмная тема */
         html.dark .archive-summary {
             background: #0f3460;
             color: #e0e0e0;
@@ -96,7 +93,6 @@
 </head>
 <body>
 <div class="container">
-    <!-- Шапка (без изменений) -->
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
         <div style="display: flex; flex-direction: column;">
             <h1 style="margin: 0;">🗄️ Архив</h1>
@@ -112,7 +108,6 @@
                     {% endif %}
                 {% endfor %}
             </div>
-            <!-- Часы -->
             <div style="display: flex; align-items: center; gap: 15px;">
                 <div id="moscow-clock" style="font-family: monospace; font-size: 16px; font-weight: bold; background: #2c3e50; color: white; padding: 6px 12px; border-radius: 8px;">--:--:-- ---</div>
                 <div style="font-size: 11px; color: #7f8c8d;">Московское время</div>
@@ -120,7 +115,6 @@
         </div>
     </div>
 
-    <!-- Навигация -->
     <div class="nav-links nav-buttons" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 20px;">
         <a href="/?station_id={{ current_station_id }}" class="nav-link">🏠 На главную</a>
         <a href="/history?station_id={{ current_station_id }}" class="nav-link nav-link-history">📜 История</a>
@@ -128,14 +122,12 @@
         <a href="/help?station_id={{ current_station_id }}" class="nav-link nav-link-help">❓ Помощь</a>
     </div>
 
-    <!-- Поиск -->
     <div class="search-box">
         <input type="text" id="searchInput" placeholder="🔍 Поиск по номеру вагона..." autocomplete="off">
         <button id="clearSearch">Очистить</button>
     </div>
     <div id="noResultsMsg" class="no-results">❌ Ничего не найдено</div>
 
-    <!-- Архивные группы -->
     <div id="archiveContainer">
     {% if not archive_groups %}
         <p>Архив пуст.</p>
@@ -151,12 +143,19 @@
                             <span><span class="info-label">📋</span> {{ item.org }}</span>
                         </div>
                         <div class="right-info">
-                            <span><span class="info-label">📅</span> {{ item.dep[:16] }}</span>
-                            <span><span class="info-label">🔢</span> Событий: {{ item.count }}</span>
+                            <span><span class="info-label">📅</span> {{ item.dep|format_date_ru }}</span>
+                            <span><span class="info-label">🔢 Событий:</span> {{ item.count }}</span>
                         </div>
                     </div>
-                    <a href="/export_wagon_archive/{{ item.num }}?station_id={{ current_station_id }}" 
-                       class="excel-wagon-btn">📊 Excel</a>
+                    <div class="overstay-info">
+                        {% if item.overstay > 0 %}
+                            <span><span class="info-label">⏱️</span> {{ item.overstay }} сут</span><br>
+                            <span><span class="info-label">💰</span> {{ "{:,.2f}".format(item.amount).replace(',', ' ') }} руб</span>
+                        {% else %}
+                            <span><span class="info-label">✅</span> Без перепростоя</span>
+                        {% endif %}
+                    </div>
+                    <a href="/export_wagon_archive/{{ item.num }}?station_id={{ current_station_id }}" class="excel-wagon-btn">📊 Excel</a>
                 </summary>
                 <div class="details-content">
                     <table class="history-table">
@@ -170,7 +169,7 @@
                                 <td>{{ ev.from }}</td>
                                 <td>{{ ev.to }}</td>
                                 <td>{{ ev.note }}</td>
-                                <td>{{ ev.time }}</td>
+                                <td>{{ ev.time|format_date_ru }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
