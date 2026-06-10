@@ -18,7 +18,7 @@ from app.models import (
     get_all_tracks, add_track, update_track, delete_track,
     move_track_up, move_track_down
 )
-from app.utils import log_action, parse_flexible_date
+from app.utils import log_action, parse_flexible_date, get_moscow_now
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -42,7 +42,7 @@ def apply_excel_styling(writer, sheet_name, has_notes=False):
         cell.alignment = Alignment(horizontal='center', vertical='center')
     for row in worksheet.iter_rows(min_row=2):
         for cell in row:
-            if has_notes and cell.column_letter in ('F', 'G', 'H'):
+            if has_notes and cell.column_letter in ('F', 'G', 'H', 'D', 'E'):
                 cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -53,11 +53,11 @@ def create_backup():
     if request.user_role != 'admin':
         return "Доступ запрещён", 403
     try:
-        date_str = datetime.now().strftime('%Y%m%d')
+        date_str = get_moscow_now().strftime('%Y%m%d')
         daily_dir = os.path.join(BACKUP_DIR, date_str)
         if not os.path.exists(daily_dir):
             os.makedirs(daily_dir)
-        time_str = datetime.now().strftime('%H%M%S')
+        time_str = get_moscow_now().strftime('%H%M%S')
         backup_name = f"rail_yard_backup_{date_str}_{time_str}.db"
         backup_path = os.path.join(daily_dir, backup_name)
         shutil.copy2(DB_NAME, backup_path)
@@ -111,7 +111,7 @@ def restore_backup():
     if not os.path.exists(full_path):
         return f"Файл не найден: {full_path}", 404
     try:
-        temp_backup = os.path.join(BACKUP_DIR, f"pre_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db")
+        temp_backup = os.path.join(BACKUP_DIR, f"pre_restore_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.db")
         shutil.copy2(DB_NAME, temp_backup)
         shutil.copy2(full_path, DB_NAME)
         log_action('backup_restore', details=f"Восстановлена БД из {rel_path}")
@@ -172,7 +172,7 @@ def export_logs_excel():
         apply_excel_styling(writer, 'Журнал действий', has_notes=True)
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                     as_attachment=True, download_name=f"ActionLog_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                     as_attachment=True, download_name=f"ActionLog_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 # ==================== УПРАВЛЕНИЕ IP ====================
 @admin_bp.route('/ip_users', methods=['GET', 'POST'])

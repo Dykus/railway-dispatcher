@@ -1,12 +1,13 @@
 # app/utils.py
 # -*- coding: utf-8 -*-
 """
-Вспомогательные функции: очистка строк, работа с IP и ролями, логирование, парсинг дат.
+Вспомогательные функции: очистка строк, работа с IP и ролями, логирование, парсинг дат,
+а также функции для работы с московским временем и миграцией.
 """
 
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import request, g
 
 import sys
@@ -14,6 +15,63 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DB_NAME, RETURN_TRACK_NAMES
 
+
+# ==================== КОНСТАНТЫ ДЛЯ ВРЕМЕНИ ====================
+# Московское время – UTC+3 (фиксировано)
+MOSCOW_OFFSET = 3
+# Для миграции: старые данные хранились в новокузнецком времени (UTC+7)
+# значит, их нужно перевести в московское, вычтя 4 часа.
+OLD_LOCAL_OFFSET = 7  # Новокузнецк UTC+7
+NEW_MSK_OFFSET = 3    # Москва UTC+3
+MIGRATION_SUBTRACT_HOURS = OLD_LOCAL_OFFSET - NEW_MSK_OFFSET  # = 4
+
+
+def get_moscow_now():
+    """
+    Возвращает текущее московское время (UTC+3).
+    Не зависит от системного часового пояса сервера.
+    """
+    # Получаем текущее UTC время и прибавляем 3 часа
+    utc_now = datetime.utcnow()
+    msk_now = utc_now + timedelta(hours=MOSCOW_OFFSET)
+    # Обрезаем микросекунды для согласованности с БД
+    return msk_now.replace(microsecond=0)
+
+
+def local_to_moscow(dt_str, from_offset=MIGRATION_SUBTRACT_HOURS):
+    """
+    Преобразует строку даты/времени из местного (новокузнецкого) времени
+    в московское, вычитая указанное количество часов.
+    Используется для одноразовой миграции старых записей в БД.
+    """
+    if not dt_str:
+        return None
+    try:
+        # Парсим строку формата 'YYYY-MM-DD HH:MM:SS'
+        dt = datetime.strptime(dt_str[:19], '%Y-%m-%d %H:%M:%S')
+        new_dt = dt - timedelta(hours=from_offset)
+        return new_dt.strftime('%Y-%m-%d %H:%M:%S')
+    except Exception:
+        return dt_str  # если не распарсилось, возвращаем как есть
+
+
+def moscow_to_local(dt_str, to_offset=MIGRATION_SUBTRACT_HOURS):
+    """
+    Преобразует строку даты из московского времени в местное (прибавляя часы).
+    Может пригодиться в будущем, если понадобится обратная миграция.
+    """
+    if not dt_str:
+        return None
+    try:
+        dt = datetime.strptime(dt_str[:19], '%Y-%m-%d %H:%M:%S')
+        new_dt = dt + timedelta(hours=to_offset)
+        return new_dt.strftime('%Y-%m-%d %H:%M:%S')
+    except Exception:
+        return dt_str
+
+
+# ==================== ОСТАЛЬНЫЕ СУЩЕСТВУЮЩИЕ ФУНКЦИИ ====================
+# (они остаются без изменений, только добавлены импорты выше)
 
 def get_conn():
     """Возвращает соединение с базой данных."""

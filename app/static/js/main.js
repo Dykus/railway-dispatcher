@@ -716,3 +716,27 @@ document.addEventListener('DOMContentLoaded', function() {
         applyTheme(isDark ? 'light' : 'dark');
     });
 });
+
+// ===== ЧАСЫ С МОСКОВСКИМ ВРЕМЕНЕМ (вычитаем 4 часа из местного) =====
+function updateMoscowClock() {
+    const clockElement = document.getElementById('moscow-clock');
+    if (!clockElement) return;
+    const now = new Date();
+    // вычитаем 4 часа (в миллисекундах) – Новокузнецк (UTC+7) -> Москва (UTC+3)
+    const msk = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+    const hours = String(msk.getHours()).padStart(2, '0');
+    const minutes = String(msk.getMinutes()).padStart(2, '0');
+    const seconds = String(msk.getSeconds()).padStart(2, '0');
+    const day = String(msk.getDate()).padStart(2, '0');
+    const month = String(msk.getMonth() + 1).padStart(2, '0');
+    const year = msk.getFullYear();
+    clockElement.textContent = `${hours}:${minutes}:${seconds} ${day}.${month}.${year}`;
+}
+
+// Запускаем часы, если элемент существует (после загрузки DOM)
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('moscow-clock')) {
+        updateMoscowClock();
+        setInterval(updateMoscowClock, 1000);
+    }
+});

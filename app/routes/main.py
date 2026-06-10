@@ -6,12 +6,14 @@ import sys
 import os
 import socket
 import sqlite3
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from config import APP_VERSION
 from app.models import (
     get_dashboard_data, move_wagon, depart_wagon, log_movement, log_action,
     find_slot_on_track, compact_track, get_conn, get_setting
 )
+from app.utils import get_moscow_now
 
 main_bp = Blueprint('main', __name__)
 
@@ -171,10 +173,10 @@ def add_wagon():
             start_dt = datetime.strptime(manual_start, '%Y-%m-%d %H:%M')
             arrival_time = f"{start_date} {start_time}:00"
         except:
-            arrival_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            arrival_time = get_moscow_now().strftime('%Y-%m-%d %H:%M:%S')
             flash("Неверный формат даты/времени, использовано текущее время", 'warning')
     else:
-        arrival_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        arrival_time = get_moscow_now().strftime('%Y-%m-%d %H:%M:%S')
 
     global_dep = None
     if total_mins > 0:
@@ -183,9 +185,9 @@ def add_wagon():
                 start_dt = datetime.strptime(manual_start, '%Y-%m-%d %H:%M')
                 global_dep = (start_dt + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
             except:
-                global_dep = (datetime.now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
+                global_dep = (get_moscow_now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
         else:
-            global_dep = (datetime.now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
+            global_dep = (get_moscow_now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
 
     compact_track(track_id)
     wagon_len = float(get_setting('default_wagon_length', '10.0'))

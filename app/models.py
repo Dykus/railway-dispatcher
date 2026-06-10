@@ -17,10 +17,11 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DB_NAME, BACKUP_DIR, CHANGELOG_PATH
 from app.utils import (
-    get_conn, clean_note_for_db, log_action, format_date
+    get_conn, clean_note_for_db, log_action, format_date,
+    get_moscow_now, local_to_moscow, MIGRATION_SUBTRACT_HOURS
 )
 
-# ==================== ИНИЦИАЛИЗАЦИЯ БД ====================
+# ==================== ИНИЦИАЛИЗАЦИЯ БД И МИГРАЦИЯ ====================
 def init_db():
     conn = get_conn()
     c = conn.cursor()
@@ -167,6 +168,9 @@ def init_db():
     migrate_to_visits()
     migrate_to_stations()
     ensure_fine_settings_for_all_stations()
+    
+    # ОДНОРАЗОВАЯ МИГРАЦИЯ ВРЕМЕННЫХ ПОЛЕЙ НА МОСКОВСКОЕ ВРЕМЯ
+    migrate_timezone_to_msk()
 
 def migrate_to_visits():
     conn = get_conn()
@@ -218,6 +222,54 @@ def ensure_fine_settings_for_all_stations():
     conn.commit()
     conn.close()
 
+# ==================== МИГРАЦИЯ ЧАСОВОГО ПОЯСА ====================
+def migrate_timezone_to_msk():
+    """Одноразовая миграция всех временных полей из новокузнецкого времени в московское."""
+    conn = get_conn()
+    c = conn.cursor()
+    
+    # Проверяем, не выполнялась ли миграция ранее
+    c.execute("SELECT value FROM app_settings WHERE key = 'timezone_migrated' AND station_id = 0")
+    if c.fetchone():
+        print("[МИГРАЦИЯ] Часовой пояс уже переведён на московский, пропускаем.")
+        conn.close()
+        return
+    
+    print("[МИГРАЦИЯ] Начинаем перевод базы данных из новокузнецкого времени в московское...")
+    
+    # Таблицы и поля, которые нужно преобразовать
+    tables = {
+        "wagon_visits": ["arrival_time", "departure_time", "local_departure_time"],
+        "movement_history": ["timestamp"],
+        "archived_history": ["timestamp", "archived_date"],
+        "action_log": ["timestamp"],
+        "wagons": ["arrival_time", "departure_time", "local_departure_time"]
+    }
+    
+    total_updated = 0
+    for table, columns in tables.items():
+        for col in columns:
+            try:
+                c.execute(f"SELECT id, {col} FROM {table} WHERE {col} IS NOT NULL")
+                rows = c.fetchall()
+                for row_id, dt_str in rows:
+                    if dt_str:
+                        new_dt_str = local_to_moscow(dt_str, MIGRATION_SUBTRACT_HOURS)
+                        if new_dt_str and new_dt_str != dt_str:
+                            c.execute(f"UPDATE {table} SET {col}=? WHERE id=?", (new_dt_str, row_id))
+                            total_updated += 1
+            except sqlite3.OperationalError as e:
+                print(f"[МИГРАЦИЯ] Ошибка в таблице {table}.{col}: {e}")
+                continue
+    
+    # Устанавливаем флаг, что миграция выполнена
+    c.execute("INSERT OR REPLACE INTO app_settings (key, value, station_id) VALUES (?, ?, ?)",
+              ('timezone_migrated', '1', 0))
+    conn.commit()
+    conn.close()
+    print(f"[МИГРАЦИЯ] Завершено. Обновлено записей: {total_updated}")
+
+# ==================== ОСТАЛЬНЫЕ ФУНКЦИИ (С ЗАМЕНОЙ datetime.now -> get_moscow_now) ====================
 def get_setting(key, default=None, station_id=None):
     conn = get_conn()
     c = conn.cursor()
@@ -318,7 +370,7 @@ def create_auto_backup():
         keep_count = int(get_setting('backup_keep_count', '30'))
         auto_dir = os.path.join(BACKUP_DIR, 'auto')
         if not os.path.exists(auto_dir): os.makedirs(auto_dir)
-        backup_name = f"rail_yard_auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        backup_name = f"rail_yard_auto_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.db"
         backup_path = os.path.join(auto_dir, backup_name)
         shutil.copy2(DB_NAME, backup_path)
         all_backups = sorted(glob.glob(os.path.join(auto_dir, 'rail_yard_auto_*.db')), key=os.path.getmtime)
@@ -332,7 +384,7 @@ def create_auto_backup():
 def schedule_daily_backup():
     def backup_loop():
         while True:
-            now = datetime.now()
+            now = get_moscow_now()
             backup_hour = int(get_setting('backup_hour', '3'))
             next_run = now.replace(hour=backup_hour, minute=0, second=0, microsecond=0)
             if now >= next_run: next_run += timedelta(days=1)
@@ -462,7 +514,7 @@ def get_last_event_datetime(wagon_number, station_id=1):
 def log_movement(wagon_number, action_type, from_track_name=None, to_track_name=None, note=None, custom_timestamp=None, station_id=1):
     conn = get_conn()
     c = conn.cursor()
-    timestamp = custom_timestamp if custom_timestamp else datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    timestamp = custom_timestamp if custom_timestamp else get_moscow_now().strftime('%Y-%m-%d %H:%M:%S')
     clean_note = clean_note_for_db(note)
     c.execute("""INSERT INTO movement_history (wagon_number, action_type, from_track, to_track, note, timestamp, station_id) VALUES (?, ?, ?, ?, ?, ?, ?)""",
               (wagon_number, action_type, from_track_name, to_track_name, clean_note, timestamp, station_id))
@@ -546,9 +598,9 @@ def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0
                     pass
             log_timestamp = manual_start_str.replace('T', ' ') + ":00"
         except ValueError:
-            log_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            log_timestamp = get_moscow_now().strftime('%Y-%m-%d %H:%M:%S')
     else:
-        log_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        log_timestamp = get_moscow_now().strftime('%Y-%m-%d %H:%M:%S')
 
     if total_mins > 0:
         if manual_start_str and manual_start_str.strip():
@@ -556,9 +608,9 @@ def move_wagon(wagon_id, new_track_id, local_days=0, local_hours=0, local_mins=0
                 start_dt = datetime.strptime(manual_start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
                 new_local_dep_time = (start_dt + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
             except ValueError:
-                new_local_dep_time = (datetime.now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
+                new_local_dep_time = (get_moscow_now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
         else:
-            new_local_dep_time = (datetime.now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
+            new_local_dep_time = (get_moscow_now() + timedelta(minutes=total_mins)).strftime('%Y-%m-%d %H:%M:%S')
     else:
         new_local_dep_time = None
 
@@ -589,7 +641,7 @@ def depart_wagon(visit_id):
         c.execute("SELECT name FROM tracks WHERE id = ?", (track_id,))
         track_name_res = c.fetchone()
         track_name = track_name_res[0] if track_name_res else "Неизвестный путь"
-        archived_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        archived_date = get_moscow_now().strftime('%Y-%m-%d %H:%M:%S')
         c.execute("""INSERT INTO archived_history (wagon_number, action_type, from_track, to_track, note, timestamp, archived_date, visit_id, station_id) 
                      SELECT wagon_number, action_type, from_track, to_track, note, timestamp, ?, ?, ? FROM movement_history WHERE wagon_number = ? AND station_id = ?""", 
                   (archived_date, visit_id, station_id, w_num, station_id))
@@ -680,7 +732,7 @@ def edit_wagon(visit_id, new_owner=None, new_org=None, new_note=None, new_arriva
     conn.commit()
     conn.close()
     changes_str = "; ".join(changes)
-    log_movement(w_num, 'edit', note=f"Изменения: {changes_str}", custom_timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'), station_id=station_id)
+    log_movement(w_num, 'edit', note=f"Изменения: {changes_str}", custom_timestamp=get_moscow_now().strftime('%Y-%m-%d %H:%M:%S'), station_id=station_id)
     log_action('edit', wagon_number=w_num, details=changes_str, old_value=changes_str, new_value=changes_str, station_id=station_id)
     return True, "Данные вагона обновлены"
 
@@ -697,7 +749,7 @@ def get_dashboard_data(station_id=1):
     conn.close()
     
     tracks_data = []
-    now = datetime.now()
+    now = get_moscow_now()
     wagons_by_track = {}
     for w in all_wagons_raw:
         tid = w[6]
@@ -979,7 +1031,7 @@ def calculate_current_overstay(visit_id):
         return 0
     try:
         arrival_dt = datetime.strptime(arrival_str[:10], '%Y-%m-%d')
-        today = datetime.now().date()
+        today = get_moscow_now().date()
         calendar_days = (today - arrival_dt.date()).days + 1
         allowed_days = 0
         if global_deadline_str:

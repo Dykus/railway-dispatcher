@@ -4,6 +4,33 @@
     <meta charset="UTF-8">
     <title>{{ title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Стили для статусов – гарантированно работают */
+        .status-added, .status-moved, .status-departed, .status-edit {
+            display: inline-block !important;
+            padding: 2px 12px !important;
+            border-radius: 12px !important;
+            font-weight: bold !important;
+            color: white !important;
+            text-align: center !important;
+        }
+        .status-added { background-color: #27ae60 !important; }
+        .status-moved { background-color: #f39c12 !important; }
+        .status-departed { background-color: #e74c3c !important; }
+        .status-edit { background-color: #8e44ad !important; }
+
+        .excel-wagon-btn {
+            background-color: #217346 !important;
+            color: white !important;
+            padding: 4px 10px !important;
+            border-radius: 4px !important;
+            text-decoration: none !important;
+            font-weight: bold !important;
+        }
+        html.dark .excel-wagon-btn {
+            background-color: #1e8449 !important;
+        }
+    </style>
     <script>
         (function() {
             const theme = localStorage.getItem('theme');
@@ -15,41 +42,46 @@
 </head>
 <body>
 <div class="container">
-    <!-- ПЕРВАЯ СТРОКА: заголовок + версия (слева) и вкладки площадок (справа) -->
+    <!-- ШАПКА (вкладки и часы) -->
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
         <div style="display: flex; flex-direction: column;">
             <h1 style="margin: 0;">{{ title }}</h1>
             <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">Версия {{ version }}</div>
         </div>
-        <div class="station-tabs" style="display: flex; gap: 10px;">
-            {% for station in stations_list %}
-                {% if station.id == current_station_id %}
-                    <a href="?station_id={{ station.id }}" class="btn btn-primary" style="padding: 6px 16px;">{{ station.name }}</a>
-                {% else %}
-                    <a href="?station_id={{ station.id }}" class="btn" style="background: #95a5a6; padding: 6px 16px;">{{ station.name }}</a>
-                {% endif %}
-            {% endfor %}
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="station-tabs" style="display: flex; gap: 10px;">
+                {% for station in stations_list %}
+                    {% if station.id == current_station_id %}
+                        <a href="?station_id={{ station.id }}" class="btn btn-primary" style="padding: 6px 16px;">{{ station.name }}</a>
+                    {% else %}
+                        <a href="?station_id={{ station.id }}" class="btn" style="background: #95a5a6; padding: 6px 16px;">{{ station.name }}</a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div id="moscow-clock" style="font-family: monospace; font-size: 16px; font-weight: bold; background: #2c3e50; color: white; padding: 6px 12px; border-radius: 8px;">--:--:-- ---</div>
+                <div style="font-size: 11px; color: #7f8c8d;">Московское время</div>
+            </div>
         </div>
     </div>
 
-    <!-- ВТОРАЯ СТРОКА: основные кнопки + контейнер для кнопки темы -->
+    <!-- КНОПКИ -->
     <div class="nav-links nav-buttons" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 20px;">
         <a href="/?station_id={{ current_station_id }}" class="nav-link">🏠 На главную</a>
         <a href="/archive?station_id={{ current_station_id }}" class="nav-link nav-link-archive">🗄️ Архив</a>
         <a href="/export_history_excel?station_id={{ current_station_id }}" class="nav-link nav-link-excel">📊 Скачать Excel (все вагоны)</a>
         <a href="/export_active_wagons_excel?station_id={{ current_station_id }}" class="nav-link nav-link-excel" style="background: #e67e22;">📊 Excel: перепростой на сегодня</a>
         <a href="/help?station_id={{ current_station_id }}" class="nav-link nav-link-help">❓ Помощь</a>
-        <!-- Сюда будет добавлена кнопка переключения темы через JavaScript -->
     </div>
 
-    <!-- Поиск -->
+    <!-- ПОИСК -->
     <div class="search-box">
         <input type="text" id="searchInput" placeholder="🔍 Поиск по номеру вагона..." autocomplete="off">
         <button id="clearSearch">Очистить</button>
     </div>
     <div id="noResultsMsg" class="no-results">❌ Ничего не найдено</div>
 
-    <!-- История -->
+    <!-- ИСТОРИЯ -->
     <div id="historyContainer">
     {% if not history_groups %}
         <p>История пуста.</p>
@@ -58,9 +90,18 @@
             <details class="wagon-details" data-wagon-num="{{ item.num|lower }}">
                 <summary>
                     <span class="wagon-num">{{ item.num }}</span>
-                    <span class="status-{% if 'Добавлен' in item.last_status %}added{% elif 'Перемещен' in item.last_status %}moved{% elif 'Изменён' in item.last_status %}edit{% else %}departed{% endif %}">{{ item.last_status|safe }}</span>
+                    {% set status_text = item.last_status|striptags %}
+                    {% if 'Добавлен' in status_text %}
+                        <span class="status-added">Добавлен</span>
+                    {% elif 'Перемещен' in status_text %}
+                        <span class="status-moved">Перемещен</span>
+                    {% elif 'Изменён' in status_text %}
+                        <span class="status-edit">Изменён</span>
+                    {% else %}
+                        <span class="status-departed">Убыл</span>
+                    {% endif %}
                     <span class="wagon-info">📅 {{ item.last_time[:16] }} | Событий: {{ item.count }}</span>
-                    <a href="/export_wagon_history/{{ item.num }}?station_id={{ current_station_id }}" class="excel-wagon-btn" title="Выгрузить историю только этого вагона">📊 Excel</a>
+                    <a href="/export_wagon_history/{{ item.num }}?station_id={{ current_station_id }}" class="excel-wagon-btn">📊 Excel</a>
                 </summary>
                 <div class="details-content">
                     <table class="history-table">
@@ -77,24 +118,22 @@
                         </thead>
                         <tbody>
                             {% for ev in item.events %}
-                                <tr>
-                                    <td>{{ ev.action|safe }}</td>
-                                    <td>{{ ev.from }}</td>
-                                    <td>{{ ev.to }}</td>
-                                    <td>{{ ev.owner }}</td>
-                                    <td>{{ ev.org }}</td>
-                                    <td>{{ ev.note }}</td>
-                                    <td>
-                                        {{ ev.time }}
-                                        {% if session_role in ('supervisor', 'admin') %}
-                                            {% if ev.is_last %}
-                                                <button class="edit-history-btn" data-id="{{ ev.id }}" data-time="{{ ev.time }}" title="Редактировать дату последнего события">✏️</button>
-                                            {% else %}
-                                                <span class="edit-history-locked" title="Редактирование доступно только для последнего события, чтобы не нарушать хронологию">🔒</span>
-                                            {% endif %}
-                                        {% endif %}
-                                    </td>
-                                </tr>
+                            <tr>
+                                <td>{{ ev.action|safe }}</td>
+                                <td>{{ ev.from }}</td>
+                                <td>{{ ev.to }}</td>
+                                <td>{{ ev.owner }}</td>
+                                <td>{{ ev.org }}</td>
+                                <td>{{ ev.note }}</td>
+                                <td>
+                                    {{ ev.time }}
+                                    {% if session_role in ('supervisor', 'admin') and ev.is_last %}
+                                        <button class="edit-history-btn" data-id="{{ ev.id }}" data-time="{{ ev.time }}" title="Редактировать дату последнего события">✏️</button>
+                                    {% elif session_role in ('supervisor', 'admin') and not ev.is_last %}
+                                        <span class="edit-history-locked" title="Редактирование доступно только для последнего события">🔒</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>

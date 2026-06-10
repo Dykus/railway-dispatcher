@@ -14,6 +14,7 @@ from openpyxl.styles import Font, Alignment
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from app.models import get_conn, calculate_overstay, calculate_current_overstay, get_setting
+from app.utils import get_moscow_now
 
 export_bp = Blueprint('export', __name__)
 
@@ -70,7 +71,7 @@ def export_excel():
 
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                     as_attachment=True, download_name=f"Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                     as_attachment=True, download_name=f"Report_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 
 @export_bp.route('/export_history_excel')
@@ -104,7 +105,7 @@ def export_history_excel():
 
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                     as_attachment=True, download_name=f"History_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                     as_attachment=True, download_name=f"History_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 
 @export_bp.route('/export_archive_excel')
@@ -188,7 +189,7 @@ def export_archive_excel():
         vid = row['visit_id']
         over, amt = calculate_overstay(vid)
         overstays.append(over if over > 0 else '')
-        amounts.append(amt if amt > 0 else None)
+        amounts.append(amt if amt > 0 else None)   # числовой формат
     df_summary['Перепростой, сут'] = overstays
     df_summary['Сумма, руб'] = amounts
     df_summary.drop(columns=['visit_id'], inplace=True, errors='ignore')
@@ -202,7 +203,7 @@ def export_archive_excel():
 
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                     as_attachment=True, download_name=f"Archive_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                     as_attachment=True, download_name=f"Archive_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 
 @export_bp.route('/export_wagon_history/<wagon_number>')
@@ -235,7 +236,7 @@ def export_wagon_history(wagon_number):
 
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                     as_attachment=True, download_name=f"History_{wagon_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                     as_attachment=True, download_name=f"History_{wagon_number}_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 
 @export_bp.route('/export_wagon_archive/<wagon_number>')
@@ -303,7 +304,7 @@ def export_wagon_archive(wagon_number):
     
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                     as_attachment=True, download_name=f"Archive_{wagon_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                     as_attachment=True, download_name=f"Archive_{wagon_number}_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
 
 @export_bp.route('/export_active_wagons_excel')
@@ -333,7 +334,7 @@ def export_active_wagons_excel():
     # Рассчитываем перепростой на текущую дату для каждого вагона
     overstays = []
     amounts = []
-    today_str = datetime.now().strftime('%Y-%m-%d')
+    today_str = get_moscow_now().strftime('%Y-%m-%d')
     
     for _, row in df.iterrows():
         visit_id = row['visit_id']
@@ -389,4 +390,4 @@ def export_active_wagons_excel():
     
     output.seek(0)
     return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                     as_attachment=True, download_name=f"ActiveWagons_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                     as_attachment=True, download_name=f"ActiveWagons_{get_moscow_now().strftime('%Y%m%d_%H%M%S')}.xlsx")

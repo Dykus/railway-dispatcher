@@ -462,66 +462,46 @@ summary::marker {
     color: #2980b9;
 }
 
-.status-added {
-    background: #27ae60;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    display: inline-block;
-    text-align: center;
-}
-
-.status-moved {
-    background: #f39c12;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    display: inline-block;
-    text-align: center;
-}
-
-.status-departed {
-    background: #e74c3c;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    display: inline-block;
-    text-align: center;
-}
-
-.status-edit {
-    background: #8e44ad;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    display: inline-block;
-    text-align: center;
-}
-
+/* СТАТУСЫ В СВЕТЛОЙ ТЕМЕ (ГАРАНТИРОВАННЫЕ ЦВЕТА) */
+.status-added,
+.status-moved,
+.status-departed,
+.status-edit,
 .wagon-status {
-    background: #e74c3c;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    display: inline-block;
-    text-align: center;
+    display: inline-block !important;
+    padding: 2px 12px !important;
+    border-radius: 12px !important;
+    font-weight: bold !important;
+    color: white !important;
+    text-align: center !important;
 }
+.status-added { background-color: #27ae60 !important; }
+.status-moved { background-color: #f39c12 !important; }
+.status-departed { background-color: #e74c3c !important; }
+.status-edit { background-color: #8e44ad !important; }
+.wagon-status { background-color: #e74c3c !important; }
 
+/* КНОПКИ EXCEL – НЕ РАСТЯГИВАЮТСЯ */
 .excel-wagon-btn {
-    background: #217346;
-    color: white;
-    padding: 4px 10px;
-    border-radius: 4px;
-    text-decoration: none;
-    font-size: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    justify-self: end;
-    white-space: nowrap;
+    display: inline-block !important;
+    width: auto !important;
+    white-space: nowrap !important;
+    background-color: #217346 !important;
+    color: white !important;
+    padding: 4px 10px !important;
+    border-radius: 4px !important;
+    text-decoration: none !important;
+    font-weight: bold !important;
 }
 .excel-wagon-btn:hover {
-    background: #1e5c3a;
+    background-color: #1e5c3a !important;
+}
+
+/* ФИКС ДЛЯ ЯЧЕЕК ТАБЛИЦЫ (чтобы кнопка не растягивалась) */
+.history-table td:last-child,
+.history-table td .excel-wagon-btn {
+    width: 1% !important;
+    white-space: nowrap !important;
 }
 
 .wagon-info {
@@ -663,7 +643,6 @@ html.dark {
     --summary-text: #ecf0f1;
 }
 
-/* Применяем переменные */
 body {
     background: var(--bg-body);
     color: var(--text-color);
@@ -715,355 +694,66 @@ details, .track-wrapper, .controls {
     background: var(--summary-bg);
 }
 
-/* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ ===== */
+/* Дополнительные стили для тёмной темы */
 html.dark .controls {
     background: #0f3460;
 }
-
 html.dark .control-box:first-child {
     border-right-color: #2c3e50;
 }
-
-html.dark input, 
-html.dark select, 
-html.dark textarea {
+html.dark input, html.dark select, html.dark textarea {
     background: #1a1a2e;
     color: #e0e0e0;
     border-color: #2c3e50;
 }
-
-html.dark input:focus, 
-html.dark select:focus, 
-html.dark textarea:focus {
-    outline-color: #3498db;
-}
-
-html.dark .time-group input,
-html.dark .date-time-group input {
-    background: #1a1a2e;
-    color: #e0e0e0;
-}
-
 html.dark .date-buttons button {
     background: #0f3460;
     color: white;
-    border-color: #2c3e50;
 }
-
-html.dark .date-buttons button:hover {
-    background: #1f618d;
-}
-
 html.dark .legend {
     background: #0f3460;
     color: #e0e0e0;
 }
-
-html.dark .legend-color {
-    border: 1px solid #2c3e50;
-}
-
 html.dark .track-wrapper {
     background: #16213e;
     border-color: #2c3e50;
 }
-
 html.dark .alert-success {
     background: #1e8449;
     color: #d4edda;
-    border-left-color: #27ae60;
 }
-
 html.dark .alert-error {
     background: #c0392b;
     color: #f8d7da;
-    border-left-color: #e74c3c;
 }
-
-html.dark .refresh-btn {
-    background: #0f3460;
-    color: white;
-    border: none;
-}
-
-html.dark .refresh-btn:hover {
-    background: #1f618d;
-}
-
-html.dark #editModal {
-    background: rgba(0,0,0,0.7);
-}
-
 html.dark #editModal > div {
     background: #16213e;
     color: #e0e0e0;
 }
-
-html.dark #editModal input,
-html.dark #editModal textarea,
-html.dark #editModal select {
-    background: #1a1a2e;
-    color: #e0e0e0;
+html.dark .history-table td,
+html.dark .history-table th {
     border-color: #2c3e50;
 }
-
-html.dark .tooltip-row {
-    border-bottom-color: #2c3e50;
-}
-
-html.dark .timer-block {
-    border-top-color: #2c3e50;
-}
-
-html.dark .close-tooltip {
-    color: #bdc3c7;
-}
-
-html.dark .close-tooltip:hover {
-    color: white;
-}
-
-html.dark .btn-remove-large {
-    background: #c0392b;
-}
-
-html.dark .btn-remove-large:hover {
-    background: #e74c3c;
-}
-
-/* Стили для страницы настроек */
-html.dark .settings-section {
-    background: #0f3460;
-    border: 1px solid #2c3e50;
-}
-
-html.dark .form-row input,
-html.dark .form-row select {
-    background: #1a1a2e;
-    color: #e0e0e0;
-    border-color: #2c3e50;
-}
-
-html.dark .btn-save {
-    background: #1e8449;
-}
-
-html.dark .btn-save:hover {
-    background: #27ae60;
-}
-
-/* Стили для страницы привязки IP */
-html.dark .ip-form {
-    background: #0f3460;
-}
-
-html.dark .ip-form input,
-html.dark .ip-form select {
-    background: #1a1a2e;
-    color: #e0e0e0;
-    border-color: #2c3e50;
-}
-
-html.dark .ip-table {
-    background: #16213e;
-}
-
-html.dark .ip-table th {
-    background: #0f3460;
-    color: #ecf0f1;
-}
-
-html.dark .ip-table td {
-    border-color: #2c3e50;
-    color: #e0e0e0;
-}
-
-html.dark .ip-table tr:nth-child(even) {
-    background: #1a1a2e;
-}
-
-html.dark .delete-btn {
-    background: #c0392b;
-}
-
-html.dark .delete-btn:hover {
-    background: #e74c3c;
-}
-
-/* Стили для страницы истории и архива */
-html.dark .search-box input {
-    background: #1a1a2e;
-    color: #e0e0e0;
-    border-color: #2c3e50;
-}
-
-html.dark .search-box button {
-    background: #0f3460;
-}
-
-html.dark .search-box button:hover {
-    background: #1f618d;
-}
-
-html.dark .history-table td {
-    border-color: #2c3e50;
-    color: #e0e0e0;
-}
-
 html.dark .history-table tr:nth-child(even) {
     background: #1a1a2e;
 }
-
 html.dark .history-table tr:hover {
     background: #0f3460;
 }
-
-html.dark .edit-history-btn {
-    color: #3498db;
+html.dark .excel-wagon-btn {
+    background-color: #1e8449 !important;
+}
+html.dark .excel-wagon-btn:hover {
+    background-color: #27ae60 !important;
 }
 
-html.dark .edit-history-btn:hover {
-    color: #e67e22;
-}
-
-/* ===== ПЕРЕКРАШИВАНИЕ БЛОКОВ ГЛОБАЛЬНОГО И ЛОКАЛЬНОГО СРОКОВ ===== */
-html.dark div[style*="background:#e8f6f3"],
-html.dark div[style*="background:#fef9e7"] {
-    background: #0f3460 !important;
-}
-
-html.dark div[style*="background:#e8f6f3"] *,
-html.dark div[style*="background:#fef9e7"] * {
-    color: #e0e0e0 !important;
-}
-
-html.dark div[style*="background:#e8f6f3"] label,
-html.dark div[style*="background:#fef9e7"] label {
-    color: #bdc3c7 !important;
-}
-
-/* ===== ДОПОЛНИТЕЛЬНЫЕ ЭЛЕМЕНТЫ (pre, note, address, таблицы без классов) ===== */
-html.dark pre {
-    background: #1a1a2e !important;
-    color: #e0e0e0 !important;
-    border-color: #2c3e50 !important;
-}
-
-html.dark .note {
-    background: #0f3460 !important;
-    color: #e0e0e0 !important;
-    border-left-color: #f39c12 !important;
-}
-
-html.dark .address {
-    background: #0f3460 !important;
-    color: #e0e0e0 !important;
-}
-
-html.dark .color-box {
-    border: 1px solid #2c3e50 !important;
-}
-
-html.dark table:not(.ip-table):not(.history-table) {
-    background: #16213e;
-}
-html.dark table:not(.ip-table):not(.history-table) th {
-    background: #0f3460;
-    color: #ecf0f1;
-}
-html.dark table:not(.ip-table):not(.history-table) td {
-    border-color: #2c3e50;
-    color: #e0e0e0;
-}
-html.dark table:not(.ip-table):not(.history-table) tr:nth-child(even) {
-    background: #1a1a2e;
-}
-/* ===== ПОЛНОСТЬЮ ТЁМНАЯ ТЕМА ДЛЯ ВСЕХ ЭЛЕМЕНТОВ (включая раскрытые блоки) ===== */
-html.dark details,
-html.dark .details-content,
-html.dark .history-table,
-html.dark .history-table td,
-html.dark .history-table th,
-html.dark table,
-html.dark td,
-html.dark th,
-html.dark tr,
-html.dark tbody,
-html.dark thead {
-    background: #16213e !important;
-    color: #e0e0e0 !important;
-    border-color: #2c3e50 !important;
-}
-
-html.dark .history-table th {
-    background: #0f3460 !important;
-    color: #ecf0f1 !important;
-}
-
-html.dark .history-table tr:nth-child(even),
-html.dark table tr:nth-child(even) {
-    background: #1a1a2e !important;
-}
-
-html.dark .history-table tr:hover,
-html.dark table tr:hover {
-    background: #0f3460 !important;
-}
-
-/* Принудительно перекрашиваем summary и его содержимое */
-html.dark summary,
-html.dark summary * {
-    background: #0f3460 !important;
-    color: #e0e0e0 !important;
-}
-
-html.dark .wagon-num {
-    color: #3498db !important;
-}
-
-html.dark .status-added,
-html.dark .status-moved,
-html.dark .status-departed,
-html.dark .status-edit {
-    background: transparent !important;
-    color: inherit !important;
-}
-
-/* Специально для страницы "О программе" – если она не переключается, принудительно перекрашиваем всё внутри .container */
-html.dark .container {
-    background: #16213e !important;
-}
-
-html.dark .container h1,
-html.dark .container h2,
-html.dark .container h3,
-html.dark .container p,
-html.dark .container li,
-html.dark .container td,
-html.dark .container th,
-html.dark .container .version {
-    color: #e0e0e0 !important;
-}
-
-html.dark .container .note,
-html.dark .container .address {
-    background: #0f3460 !important;
-    color: #e0e0e0 !important;
-    border-left-color: #f39c12 !important;
-}
-
-html.dark .container .nav-link {
-    background: #0f3460 !important;
-    color: white !important;
-}
-/* Стили для таблицы цветов в справке (дневная тема) */
+/* Стили для таблицы цветов в справке */
 .help-color-table {
     width: 100%;
     border-collapse: collapse;
     margin: 15px 0;
     table-layout: fixed;
 }
-
 .help-color-table th,
 .help-color-table td {
     border: 1px solid #ddd;
@@ -1071,25 +761,15 @@ html.dark .container .nav-link {
     text-align: left;
     vertical-align: middle;
 }
-
 .help-color-table th {
     background: #ecf0f1;
     color: #2c3e50;
     font-weight: bold;
 }
-
 .help-color-table td {
     background: white;
     color: #2c3e50;
 }
-
-/* Цвета в дневной теме – тёмные, контрастные */
-.help-color-table td span {
-    display: inline-block;
-    vertical-align: middle;
-}
-
-/* Тёмная тема для таблицы цветов */
 html.dark .help-color-table th {
     background: #0f3460;
     color: #ecf0f1;
