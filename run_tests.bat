@@ -4,8 +4,8 @@ echo ========================================
 echo   Запуск проверок ЖД Диспетчерской...
 echo ========================================
 echo.
-REM Запускаем тесты с подробным выводом и генерацией HTML-отчёта
-pytest tests/test_scenarios.py -v -s --html=report.html --self-contained-html
+REM Запускаем все тесты в папке tests (рекурсивно)
+pytest tests/ -v -s --html=report.html --self-contained-html
 echo.
 echo ========================================
 echo   Проверки завершены.
